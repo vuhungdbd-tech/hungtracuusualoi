@@ -1,7 +1,6 @@
 
 import React, { useState, useRef } from 'react';
 import { SiteConfig } from '../types';
-import { supabase } from '../lib/supabase';
 
 interface ConfigModalProps {
   config: SiteConfig;
@@ -11,7 +10,7 @@ interface ConfigModalProps {
 
 const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) => {
   const [formData, setFormData] = useState<SiteConfig>({ ...config });
-  const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -19,7 +18,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) =>
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -30,39 +29,30 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) =>
       return;
     }
 
-    // Kiểm tra kích thước (max 1MB cho favicon)
-    if (file.size > 1024 * 1024) {
-      alert('Kích thước file quá lớn (tối đa 1MB)');
+    // Kiểm tra kích thước (max 500KB cho favicon vì lưu Base64 vào DB)
+    if (file.size > 500 * 1024) {
+      alert('Kích thước file quá lớn (tối đa 500KB để đảm bảo hiệu suất)');
       return;
     }
 
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `favicon-${Math.random()}.${fileExt}`;
-      const filePath = `icons/${fileName}`;
+    setProcessing(true);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      setFormData(prev => ({ ...prev, favicon_url: base64String }));
+      setProcessing(false);
+      alert('Đã xử lý ảnh thành công! Hãy nhấn "Lưu cấu hình" để hoàn tất.');
+    };
+    
+    reader.onerror = () => {
+      alert('Có lỗi xảy ra khi đọc file.');
+      setProcessing(false);
+    };
 
-      // Tải lên Supabase Storage (Bucket 'assets')
-      const { error: uploadError, data } = await supabase.storage
-        .from('assets')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Lấy URL công khai
-      const { data: { publicUrl } } = supabase.storage
-        .from('assets')
-        .getPublicUrl(filePath);
-
-      setFormData(prev => ({ ...prev, favicon_url: publicUrl }));
-      alert('Tải ảnh lên thành công!');
-    } catch (error: any) {
-      console.error('Lỗi tải ảnh:', error.message);
-      alert('Không thể tải ảnh lên. Hãy đảm bảo bạn đã tạo bucket "assets" với quyền Public trong Supabase Storage.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    reader.readAsDataURL(file);
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -97,9 +87,9 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) =>
                 <input 
                   type="text" 
                   name="favicon_url" 
-                  value={formData.favicon_url} 
+                  value={formData.favicon_url?.startsWith('data:image') ? 'Đã tải ảnh lên (Dạng chuỗi mã hóa)' : formData.favicon_url} 
                   onChange={handleChange} 
-                  placeholder="Nhập link URL hoặc tải lên..." 
+                  placeholder="Dán link URL hoặc chọn file từ máy tính..." 
                   className="flex-1 p-3 border rounded-xl outline-none focus:border-blue-500 bg-white" 
                 />
                 <input 
@@ -111,14 +101,14 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) =>
                 />
                 <button 
                   type="button"
-                  disabled={uploading}
+                  disabled={processing}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`px-4 py-3 rounded-xl font-bold text-xs uppercase transition-all flex items-center space-x-2 ${uploading ? 'bg-gray-200 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'}`}
+                  className={`px-4 py-3 rounded-xl font-bold text-xs uppercase transition-all flex items-center space-x-2 ${processing ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                  <span>{uploading ? 'Đang tải...' : 'Tải lên'}</span>
+                  <span>{processing ? 'Đang xử lý...' : 'Chọn từ máy'}</span>
                 </button>
               </div>
               
@@ -127,11 +117,18 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ config, onSave, onClose }) =>
                    <div className="w-8 h-8 rounded bg-gray-50 flex items-center justify-center overflow-hidden border">
                       <img src={formData.favicon_url} alt="Favicon Preview" className="max-w-full max-h-full object-contain" />
                    </div>
-                   <span className="text-[10px] text-gray-500 font-medium">Xem trước biểu tượng</span>
+                   <span className="text-[10px] text-gray-500 font-medium">Xem trước biểu tượng hiện tại</span>
+                   <button 
+                    type="button" 
+                    onClick={() => setFormData(prev => ({ ...prev, favicon_url: '' }))}
+                    className="text-[10px] text-red-500 underline"
+                   >
+                    Xóa
+                   </button>
                 </div>
               )}
             </div>
-            <p className="text-[10px] text-gray-400 mt-2 italic font-medium">* Khuyên dùng: Ảnh vuông, nền trong suốt (.png hoặc .ico), kích thước 32x32 hoặc 64x64.</p>
+            <p className="text-[10px] text-gray-400 mt-2 italic font-medium">* Ảnh sẽ được lưu trực tiếp vào cơ sở dữ liệu. Không cần cấu hình Storage.</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
