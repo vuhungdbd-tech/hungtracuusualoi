@@ -15,15 +15,12 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
     const { name, value } = e.target;
     let finalValue: string | number = value;
 
-    // Chuẩn hóa dữ liệu ngay khi nhập
     if (name === 'score') {
       finalValue = parseFloat(value) || 0;
     } else if (name === 'full_name' || name === 'sbd') {
-      // Tự động viết hoa Tên và SBD để khớp với logic tìm kiếm
       finalValue = value.toUpperCase();
     } else if (name === 'cccd') {
-      // Chỉ cho phép nhập số
-      finalValue = value.replace(/\D/g, '');
+      finalValue = value.replace(/\D/g, '').slice(0, 12); // Chỉ giữ lại số và giới hạn 12 ký tự
     }
 
     setFormData(prev => ({ 
@@ -34,16 +31,20 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.cccd.length !== 12) {
+      alert('Số định danh (CCCD) phải đủ 12 chữ số.');
+      return;
+    }
     onSave(formData);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="bg-blue-600 p-4 text-white font-bold text-center">HỒ SƠ THÍ SINH</div>
+        <div className="bg-blue-600 p-4 text-white font-bold text-center uppercase tracking-widest">HỒ SƠ THÍ SINH</div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Họ và tên</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Họ và tên <span className="text-red-500">*</span></label>
             <input 
               type="text" 
               name="full_name" 
@@ -57,7 +58,7 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Số báo danh</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Số báo danh <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 name="sbd" 
@@ -69,7 +70,7 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CCCD</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CCCD (12 số) <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
                 name="cccd" 
@@ -77,14 +78,14 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
                 onChange={handleChange} 
                 placeholder="001..." 
                 maxLength={12}
-                className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none" 
+                className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none font-mono" 
                 required 
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Trường</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Đơn vị công tác / Trường học</label>
             <input 
               type="text" 
               name="school" 
@@ -96,7 +97,7 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Môn thi</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Môn thi chuyên</label>
             <input 
               type="text" 
               name="subject" 
@@ -138,8 +139,8 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
           </div>
 
           <div className="flex space-x-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-300 rounded-xl font-medium hover:bg-gray-50">Hủy</button>
-            <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">Lưu dữ liệu</button>
+            <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-300 rounded-xl font-medium hover:bg-gray-50 uppercase text-xs">Đóng</button>
+            <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 uppercase text-xs">Lưu dữ liệu</button>
           </div>
         </form>
       </div>
