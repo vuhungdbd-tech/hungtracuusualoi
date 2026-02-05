@@ -10,6 +10,7 @@ interface EditModalProps {
 
 const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
   const [formData, setFormData] = useState<StudentResult>({ ...student });
+  const [cccdError, setCccdError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -20,7 +21,13 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
     } else if (name === 'full_name' || name === 'sbd') {
       finalValue = value.toUpperCase();
     } else if (name === 'cccd') {
-      finalValue = value.replace(/\D/g, '').slice(0, 12); // Chỉ giữ lại số và giới hạn 12 ký tự
+      const cleaned = value.replace(/\D/g, '').slice(0, 12);
+      finalValue = cleaned;
+      if (cleaned.length > 0 && cleaned.length < 12) {
+        setCccdError('Phải nhập đủ 12 chữ số');
+      } else {
+        setCccdError('');
+      }
     }
 
     setFormData(prev => ({ 
@@ -32,7 +39,7 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.cccd.length !== 12) {
-      alert('Số định danh (CCCD) phải đủ 12 chữ số.');
+      setCccdError('Yêu cầu nhập đủ 12 số CCCD mới có thể lưu');
       return;
     }
     onSave(formData);
@@ -40,7 +47,7 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="bg-blue-600 p-4 text-white font-bold text-center uppercase tracking-widest">HỒ SƠ THÍ SINH</div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
@@ -78,9 +85,10 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
                 onChange={handleChange} 
                 placeholder="001..." 
                 maxLength={12}
-                className="w-full p-3 border border-gray-300 rounded-xl focus:border-blue-500 outline-none font-mono" 
+                className={`w-full p-3 border rounded-xl focus:border-blue-500 outline-none font-mono ${cccdError ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} 
                 required 
               />
+              {cccdError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">{cccdError}</p>}
             </div>
           </div>
           
@@ -140,7 +148,12 @@ const EditModal: React.FC<EditModalProps> = ({ student, onSave, onClose }) => {
 
           <div className="flex space-x-3 pt-4">
             <button type="button" onClick={onClose} className="flex-1 py-3 border border-gray-300 rounded-xl font-medium hover:bg-gray-50 uppercase text-xs">Đóng</button>
-            <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 uppercase text-xs">Lưu dữ liệu</button>
+            <button 
+              type="submit" 
+              className={`flex-1 py-3 text-white rounded-xl font-bold uppercase text-xs transition-all ${formData.cccd.length === 12 ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200' : 'bg-gray-300 cursor-not-allowed'}`}
+            >
+              Lưu dữ liệu
+            </button>
           </div>
         </form>
       </div>
