@@ -17,6 +17,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
   const [captchaCode, setCaptchaCode] = useState('');
   const [userInputCaptcha, setUserInputCaptcha] = useState('');
   const [captchaError, setCaptchaError] = useState(false);
+  const [cccdError, setCccdError] = useState('');
 
   const generateCaptcha = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -31,8 +32,25 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'cccd') {
+      const onlyNums = value.replace(/\D/g, '').slice(0, 12);
+      setFormData(prev => ({ ...prev, [name]: onlyNums }));
+      
+      if (onlyNums.length > 0 && onlyNums.length < 12) {
+        setCccdError('Số CCCD phải đủ 12 chữ số');
+      } else {
+        setCccdError('');
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
+
+  const isFormValid = formData.full_name.trim() !== '' && 
+                      formData.sbd.trim() !== '' && 
+                      formData.cccd.length === 12 && 
+                      userInputCaptcha.trim() !== '';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +59,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
       return;
     }
     if (formData.cccd.length !== 12) {
-      alert('Số CCCD phải gồm 12 chữ số.');
+      setCccdError('Yêu cầu nhập đủ 12 số CCCD');
       return;
     }
     onSearch(formData);
@@ -64,17 +82,32 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
           </div>
           <div>
             <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">CCCD (12 số) <span className="text-red-500">*</span></label>
-            <input type="text" name="cccd" required maxLength={12} value={formData.cccd} onChange={e => handleChange({...e, target: {...e.target, value: e.target.value.replace(/\D/g, ''), name: 'cccd'}} as any)} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-blue-500 outline-none" />
+            <input 
+              type="text" 
+              name="cccd" 
+              required 
+              maxLength={12} 
+              value={formData.cccd} 
+              onChange={handleChange} 
+              className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:border-blue-500 outline-none transition-all ${cccdError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`} 
+              placeholder="00120300..."
+            />
+            {cccdError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">{cccdError}</p>}
           </div>
         </div>
         <div>
           <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Mã bảo mật <span className="text-red-500">*</span></label>
           <div className="flex space-x-3">
             <input type="text" required value={userInputCaptcha} onChange={e => setUserInputCaptcha(e.target.value)} className={`flex-1 px-4 py-3 bg-gray-50 border rounded-xl outline-none uppercase tracking-widest ${captchaError ? 'border-red-500' : 'border-gray-200'}`} />
-            <div onClick={generateCaptcha} className="bg-gray-100 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer font-black text-blue-900 tracking-widest line-through italic">{captchaCode}</div>
+            <div onClick={generateCaptcha} className="bg-gray-100 px-4 py-3 rounded-xl border border-gray-200 cursor-pointer font-black text-blue-900 tracking-widest line-through italic select-none">{captchaCode}</div>
           </div>
+          {captchaError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase">Mã bảo mật không chính xác</p>}
         </div>
-        <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all uppercase tracking-widest">
+        <button 
+          type="submit" 
+          disabled={loading || !isFormValid} 
+          className={`w-full py-4 text-white font-black rounded-xl transition-all uppercase tracking-widest ${isFormValid ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100' : 'bg-gray-300 cursor-not-allowed'}`}
+        >
           {loading ? 'Đang kiểm tra...' : 'BẮT ĐẦU TRA CỨU'}
         </button>
       </form>
