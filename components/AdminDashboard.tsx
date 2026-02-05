@@ -26,7 +26,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination Logic
   const totalPages = Math.ceil(students.length / ITEMS_PER_PAGE);
   const currentData = useMemo(() => {
     const begin = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -68,15 +67,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        const newStudents = jsonData.slice(1).map(row => ({
-          full_name: String(row[0] || '').trim().toUpperCase(),
-          sbd: String(row[1] || '').trim().toUpperCase(),
-          cccd: String(row[2] || '').replace(/\D/g, ''),
-          school: String(row[3] || '').trim(),
-          subject: String(row[4] || '').trim(),
-          score: parseFloat(row[5]) || 0,
-          award: String(row[6] || 'Không đạt').trim()
-        })).filter(s => s.full_name && s.sbd);
+        const newStudents = jsonData.slice(1).map(row => {
+          const fullName = String(row[0] || '').trim().toUpperCase();
+          const sbd = String(row[1] || '').trim().toUpperCase();
+          // Lấy CCCD và loại bỏ toàn bộ ký tự không phải số
+          const cccd = String(row[2] || '').replace(/\D/g, '').trim();
+          
+          return {
+            full_name: fullName,
+            sbd: sbd,
+            cccd: cccd,
+            school: String(row[3] || '').trim(),
+            subject: String(row[4] || '').trim(),
+            score: parseFloat(row[5]) || 0,
+            award: String(row[6] || 'Không đạt').trim()
+          };
+        }).filter(s => s.full_name && s.sbd);
         
         if (newStudents.length === 0) {
           alert("Không tìm thấy dữ liệu hợp lệ trong file Excel.");
@@ -84,9 +90,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
         }
 
         onBulkAdd(newStudents);
-        setCurrentPage(1); // Reset to page 1 after import
+        setCurrentPage(1);
       } catch (error) {
-        alert("Lỗi khi đọc file Excel.");
+        alert("Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.");
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
@@ -144,7 +150,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
                 <tr key={s.id} className={`hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                   <td className="p-3 border-b border-r border-gray-100 font-bold text-blue-600">{s.sbd}</td>
                   <td className="p-3 border-b border-r border-gray-100 font-bold uppercase">{s.full_name}</td>
-                  <td className="p-3 border-b border-r border-gray-100">{s.cccd}</td>
+                  <td className="p-3 border-b border-r border-gray-100 font-mono text-xs">{s.cccd}</td>
                   <td className="p-3 border-b border-r border-gray-100">{s.school}</td>
                   <td className="p-3 border-b border-r border-gray-100">{s.subject}</td>
                   <td className="p-3 border-b border-r border-gray-100 text-center font-bold">{s.score}</td>
@@ -167,7 +173,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
           </table>
         </div>
 
-        {/* Pagination Controls */}
         {totalPages > 1 && (
           <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
             <div className="text-sm text-gray-500">
@@ -184,7 +189,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
               
               {[...Array(totalPages)].map((_, i) => {
                 const pageNum = i + 1;
-                // Only show current, first, last, and pages near current
                 if (pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)) {
                   return (
                     <button 
