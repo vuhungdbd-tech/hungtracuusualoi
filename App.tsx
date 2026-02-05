@@ -241,8 +241,33 @@ const App: React.FC = () => {
                 students={students} 
                 siteConfig={siteConfig}
                 onUpdate={handleUpdateStudent} 
-                onDelete={async (id) => { if(confirm('Xóa thí sinh này?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
-                onDeleteAll={async () => { if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch dữ liệu?')) { await supabase.from('students').delete().neq('id', '0'); fetchAdminData(); } }} 
+                onDelete={async (id) => { 
+                  if(confirm('Xóa thí sinh này?')) { 
+                    try {
+                      const { error } = await supabase.from('students').delete().eq('id', id);
+                      if (error) throw error;
+                      fetchAdminData();
+                    } catch (err: any) {
+                      alert('Lỗi khi xóa: ' + err.message);
+                    }
+                  } 
+                }}
+                onDeleteAll={async () => { 
+                  if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch TOÀN BỘ dữ liệu thí sinh? Thao tác này không thể hoàn tác.')) { 
+                    setLoading(true);
+                    try {
+                      // Sử dụng .not('id', 'is', null) để chọn tất cả các dòng
+                      const { error } = await supabase.from('students').delete().not('id', 'is', null);
+                      if (error) throw error;
+                      alert('Đã xóa sạch toàn bộ dữ liệu!');
+                      fetchAdminData(); 
+                    } catch (err: any) {
+                      alert('Lỗi khi xóa toàn bộ: ' + err.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  } 
+                }} 
                 onAdd={handleAddStudent}
                 onBulkAdd={handleBulkAdd}
                 onConfigUpdate={saveConfig}
