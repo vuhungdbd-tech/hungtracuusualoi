@@ -57,7 +57,7 @@ const App: React.FC = () => {
     }
   }, [siteConfig.favicon_url]);
 
-  // CHỈ tải danh sách thí sinh khi là Admin để tránh treo máy người dùng
+  // CHỈ tải danh sách thí sinh khi là Admin
   const fetchAdminData = useCallback(async () => {
     if (view !== 'admin' || !isLoggedIn) return;
     try {
@@ -71,25 +71,23 @@ const App: React.FC = () => {
     if (isLoggedIn && view === 'admin') fetchAdminData();
   }, [isLoggedIn, view, fetchAdminData]);
 
-  // HÀM TRA CỨU: Tối ưu cho hàng nghìn người truy cập cùng lúc
+  // HÀM TRA CỨU
   const handleSearch = async (params: SearchParams) => {
     setLoading(true);
     setResult(null);
     setError(null);
 
-    // Chuẩn hóa dữ liệu đầu vào: Xóa khoảng trắng thừa, viết hoa để khớp chính xác tuyệt đối
     const cleanName = params.full_name.trim().replace(/\s+/g, ' ');
     const cleanSBD = params.sbd.trim().toUpperCase();
     const cleanCCCD = params.cccd.trim();
 
     try {
-      // Truy vấn điểm: Sử dụng .match() hoặc các bộ lọc .eq() để tận dụng INDEX Database
       const { data, error: searchError } = await supabase
         .from('students')
         .select('*')
-        .ilike('full_name', cleanName) // Không phân biệt hoa thường
-        .eq('sbd', cleanSBD)           // Khớp SBD tuyệt đối
-        .eq('cccd', cleanCCCD)         // Khớp CCCD tuyệt đối
+        .ilike('full_name', cleanName)
+        .eq('sbd', cleanSBD)
+        .eq('cccd', cleanCCCD)
         .maybeSingle();
 
       if (searchError) throw searchError;
@@ -100,13 +98,102 @@ const App: React.FC = () => {
         setError('KHÔNG TÌM THẤY KẾT QUẢ: Vui lòng kiểm tra lại Họ tên, SBD và CCCD. Mọi thông tin phải khớp 100% với hồ sơ đăng ký.');
       }
     } catch (err: any) {
-      setError('Hệ thống đang bận do lượng truy cập lớn. Vui lòng chờ vài giây và nhấn tra cứu lại.');
+      setError('Hệ thống đang bận. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Quản trị viên login
+  // KIỂM TRA TRÙNG LẶP SBD/CCCD
+  const checkDuplicate = (sbd: string, cccd: string, excludeId?: string) => {
+    const duplicate = students.find(s => 
+      (s.id !== excludeId) && 
+      (s.sbd.trim().toUpperCase() === sbd.trim().toUpperCase() || s.cccd.trim() === cccd.trim())
+    );
+    return duplicate;
+  };
+
+  const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
+    const sbd = newStudent.sbd.trim().toUpperCase();
+    const cccd = newStudent.cccd.trim();
+
+    const isDuplicate = checkDuplicate(sbd, cccd);
+    if (isDuplicate) {
+      alert(`LỖI TRÙNG LẶP: Thí sinh "${isDuplicate.full_name}" đã sử dụng SBD: ${isDuplicate.sbd} hoặc CCCD: ${isDuplicate.cccd}.`);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('students').insert([{ ...newStudent, sbd, cccd }]);
+      if (error) throw error;
+      fetchAdminData();
+      alert('Thêm thí sinh mới thành công!');
+    } catch (err: any) {
+      alert('Lỗi khi thêm dữ liệu: ' + err.message);
+    }
+  };
+
+  const handleUpdateStudent = async (updated: StudentResult) => {
+    const sbd = updated.sbd.trim().toUpperCase();
+    const cccd = updated.cccd.trim();
+
+    const isDuplicate = checkDuplicate(sbd, cccd, updated.id);
+    if (isDuplicate) {
+      alert(`LỖI TRÙNG LẶP: SBD "${sbd}" hoặc CCCD "${cccd}" đã được đăng ký cho thí sinh "${isDuplicate.full_name}".`);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('students').update({ ...updated, sbd, cccd }).eq('id', updated.id);
+      if (error) throw error;
+      fetchAdminData();
+      alert('Cập nhật thông tin thành công!');
+    } catch (err: any) {
+      alert('Lỗi khi cập nhật: ' + err.message);
+    }
+  };
+
+  const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
+    // 1. Kiểm tra trùng lặp ngay trong chính file Excel vừa chọn
+    const seenSbd = new Set();
+    const seenCccd = new Set();
+    for (const item of list) {
+      const s = item.sbd.trim().toUpperCase();
+      const c = item.cccd.trim();
+      if (seenSbd.has(s) || seenCccd.has(c)) {
+        alert(`LỖI FILE: Trong file nhập có dữ liệu bị trùng lặp (SBD: ${s} hoặc CCCD: ${c}). Hãy kiểm tra lại file Excel.`);
+        return;
+      }
+      seenSbd.add(s);
+      seenCccd.add(c);
+    }
+
+    // 2. Kiểm tra trùng lặp với dữ liệu hiện có trong hệ thống
+    for (const item of list) {
+      const sbd = item.sbd.trim().toUpperCase();
+      const cccd = item.cccd.trim();
+      const isDuplicate = checkDuplicate(sbd, cccd);
+      if (isDuplicate) {
+        alert(`LỖI NHẬP LIỆU: Thí sinh "${item.full_name}" có SBD (${sbd}) hoặc CCCD (${cccd}) đã tồn tại trong hệ thống (Thí sinh: ${isDuplicate.full_name}).`);
+        return;
+      }
+    }
+
+    try {
+      const normalizedList = list.map(s => ({
+        ...s, 
+        sbd: s.sbd.trim().toUpperCase(), 
+        cccd: s.cccd.trim()
+      }));
+      const { error } = await supabase.from('students').insert(normalizedList);
+      if (error) throw error;
+      fetchAdminData();
+      alert(`Đã nhập thành công ${list.length} thí sinh vào hệ thống!`);
+    } catch (err: any) {
+      alert('Lỗi khi nhập dữ liệu từ Excel: ' + err.message);
+    }
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -130,10 +217,10 @@ const App: React.FC = () => {
         const { favicon_url, ...partial } = newConfig;
         await supabase.from('site_config').upsert([{ ...partial, id: 1 }]);
         setSiteConfig(prev => ({ ...prev, ...partial }));
-        alert("Lưu thành công cài đặt! (Lưu ý: Bạn cần chạy SQL để kích hoạt tính năng đổi Favicon)");
+        alert("Lưu thành công cài đặt! (Tính năng Favicon yêu cầu cấu hình thêm SQL)");
       } else {
         setSiteConfig(newConfig);
-        alert('Đã cập nhật cấu hình!');
+        alert('Đã cập nhật cấu hình hệ thống!');
       }
     } catch (err: any) { alert('Lỗi: ' + err.message); }
   };
@@ -164,11 +251,11 @@ const App: React.FC = () => {
               <AdminDashboard 
                 students={students} 
                 siteConfig={siteConfig}
-                onUpdate={async (u) => { await supabase.from('students').update(u).eq('id', u.id); fetchAdminData(); }} 
-                onDelete={async (id) => { if(confirm('Xóa?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
-                onDeleteAll={() => {}} 
-                onAdd={async (n) => { await supabase.from('students').insert([n]); fetchAdminData(); }}
-                onBulkAdd={async (list) => { await supabase.from('students').insert(list); fetchAdminData(); }}
+                onUpdate={handleUpdateStudent} 
+                onDelete={async (id) => { if(confirm('Xóa thí sinh này?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
+                onDeleteAll={async () => { if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch TOÀN BỘ dữ liệu?')) { await supabase.from('students').delete().neq('id', '0'); fetchAdminData(); } }} 
+                onAdd={handleAddStudent}
+                onBulkAdd={handleBulkAdd}
                 onConfigUpdate={saveConfig}
                 onLogout={() => setIsLoggedIn(false)}
               />
