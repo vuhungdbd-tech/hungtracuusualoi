@@ -35,7 +35,6 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Tải cấu hình và favicon
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -57,7 +56,6 @@ const App: React.FC = () => {
     }
   }, [siteConfig.favicon_url]);
 
-  // CHỈ tải danh sách thí sinh khi là Admin
   const fetchAdminData = useCallback(async () => {
     if (view !== 'admin' || !isLoggedIn) return;
     try {
@@ -71,7 +69,6 @@ const App: React.FC = () => {
     if (isLoggedIn && view === 'admin') fetchAdminData();
   }, [isLoggedIn, view, fetchAdminData]);
 
-  // HÀM TRA CỨU
   const handleSearch = async (params: SearchParams) => {
     setLoading(true);
     setResult(null);
@@ -104,7 +101,6 @@ const App: React.FC = () => {
     }
   };
 
-  // KIỂM TRA TRÙNG LẶP SBD/CCCD (Frontend check)
   const checkDuplicate = (sbd: string, cccd: string, excludeId?: string) => {
     return students.find(s => 
       (s.id !== excludeId) && 
@@ -112,7 +108,6 @@ const App: React.FC = () => {
     );
   };
 
-  // Xử lý lỗi Database gửi về
   const handleDatabaseError = (err: any) => {
     if (err.code === '23505') {
       alert('LỖI DỮ LIỆU: Số báo danh hoặc CCCD này đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.');
@@ -125,8 +120,13 @@ const App: React.FC = () => {
     const sbd = newStudent.sbd.trim().toUpperCase();
     const cccd = newStudent.cccd.trim();
 
+    if (cccd.length !== 12) {
+      alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
+      return;
+    }
+
     if (checkDuplicate(sbd, cccd)) {
-      alert('LỖI: SBD hoặc CCCD đã tồn tại trong danh sách hiện tại.');
+      alert('LỖI: SBD hoặc CCCD đã tồn tại trong hệ thống.');
       return;
     }
 
@@ -144,6 +144,11 @@ const App: React.FC = () => {
     const sbd = updated.sbd.trim().toUpperCase();
     const cccd = updated.cccd.trim();
 
+    if (cccd.length !== 12) {
+      alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
+      return;
+    }
+
     if (checkDuplicate(sbd, cccd, updated.id)) {
       alert('LỖI: SBD hoặc CCCD đã được sử dụng bởi thí sinh khác.');
       return;
@@ -160,26 +165,58 @@ const App: React.FC = () => {
   };
 
   const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
-    // 1. Kiểm tra trùng lặp trong file
-    const seen = new Set();
+    const seenSBD = new Set();
+    const seenCCCD = new Set();
+
+    // 1. Kiểm tra tính hợp lệ và trùng lặp toàn bộ danh sách trước khi nhập
     for (const item of list) {
-      const key = `${item.sbd.toUpperCase()}|${item.cccd}`;
-      if (seen.has(key)) {
-        alert(`FILE LỖI: Phát hiện SBD hoặc CCCD trùng lặp ngay trong file Excel của bạn.`);
+      const sbd = item.sbd.trim().toUpperCase();
+      const cccd = item.cccd.trim();
+
+      // Kiểm tra độ dài CCCD
+      if (cccd.length !== 12) {
+        alert(`LỖI FILE: Thí sinh "${item.full_name}" có số CCCD (${cccd}) không đúng 12 chữ số.`);
         return;
       }
-      seen.add(key);
+
+      // Kiểm tra trùng lặp ngay trong file
+      if (seenSBD.has(sbd)) {
+        alert(`LỖI FILE: Phát hiện Số báo danh trùng lặp trong file: ${sbd}`);
+        return;
+      }
+      if (seenCCCD.has(cccd)) {
+        alert(`LỖI FILE: Phát hiện Số CCCD trùng lặp trong file: ${cccd}`);
+        return;
+      }
+
+      // Kiểm tra trùng lặp với dữ liệu đã có trong hệ thống
+      if (checkDuplicate(sbd, cccd)) {
+        alert(`LỖI HỆ THỐNG: SBD "${sbd}" hoặc CCCD "${cccd}" của thí sinh "${item.full_name}" đã tồn tại trên cơ sở dữ liệu.`);
+        return;
+      }
+
+      seenSBD.add(sbd);
+      seenCCCD.add(cccd);
     }
 
-    // 2. Gửi dữ liệu lên
+    // 2. Nếu mọi thứ ổn, tiến hành gửi dữ liệu lên Supabase
+    setLoading(true);
     try {
-      const normalized = list.map(s => ({...s, sbd: s.sbd.trim().toUpperCase(), cccd: s.cccd.trim()}));
+      const normalized = list.map(s => ({
+        ...s, 
+        sbd: s.sbd.trim().toUpperCase(), 
+        cccd: s.cccd.trim()
+      }));
+      
       const { error } = await supabase.from('students').insert(normalized);
       if (error) throw error;
+      
+      alert(`Thành công: Đã nhập ${list.length} thí sinh vào hệ thống!`);
       fetchAdminData();
-      alert(`Đã nhập thành công ${list.length} thí sinh!`);
     } catch (err: any) {
       handleDatabaseError(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -256,7 +293,6 @@ const App: React.FC = () => {
                   if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch TOÀN BỘ dữ liệu thí sinh? Thao tác này không thể hoàn tác.')) { 
                     setLoading(true);
                     try {
-                      // Sử dụng .not('id', 'is', null) để chọn tất cả các dòng
                       const { error } = await supabase.from('students').delete().not('id', 'is', null);
                       if (error) throw error;
                       alert('Đã xóa sạch toàn bộ dữ liệu!');
