@@ -104,22 +104,29 @@ const App: React.FC = () => {
     }
   };
 
-  // KIỂM TRA TRÙNG LẶP SBD/CCCD
+  // KIỂM TRA TRÙNG LẶP SBD/CCCD (Frontend check)
   const checkDuplicate = (sbd: string, cccd: string, excludeId?: string) => {
-    const duplicate = students.find(s => 
+    return students.find(s => 
       (s.id !== excludeId) && 
       (s.sbd.trim().toUpperCase() === sbd.trim().toUpperCase() || s.cccd.trim() === cccd.trim())
     );
-    return duplicate;
+  };
+
+  // Xử lý lỗi Database gửi về
+  const handleDatabaseError = (err: any) => {
+    if (err.code === '23505') {
+      alert('LỖI DỮ LIỆU: Số báo danh hoặc CCCD này đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.');
+    } else {
+      alert('Đã xảy ra lỗi: ' + (err.message || 'Không xác định'));
+    }
   };
 
   const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
     const sbd = newStudent.sbd.trim().toUpperCase();
     const cccd = newStudent.cccd.trim();
 
-    const isDuplicate = checkDuplicate(sbd, cccd);
-    if (isDuplicate) {
-      alert(`LỖI TRÙNG LẶP: Thí sinh "${isDuplicate.full_name}" đã sử dụng SBD: ${isDuplicate.sbd} hoặc CCCD: ${isDuplicate.cccd}.`);
+    if (checkDuplicate(sbd, cccd)) {
+      alert('LỖI: SBD hoặc CCCD đã tồn tại trong danh sách hiện tại.');
       return;
     }
 
@@ -129,7 +136,7 @@ const App: React.FC = () => {
       fetchAdminData();
       alert('Thêm thí sinh mới thành công!');
     } catch (err: any) {
-      alert('Lỗi khi thêm dữ liệu: ' + err.message);
+      handleDatabaseError(err);
     }
   };
 
@@ -137,9 +144,8 @@ const App: React.FC = () => {
     const sbd = updated.sbd.trim().toUpperCase();
     const cccd = updated.cccd.trim();
 
-    const isDuplicate = checkDuplicate(sbd, cccd, updated.id);
-    if (isDuplicate) {
-      alert(`LỖI TRÙNG LẶP: SBD "${sbd}" hoặc CCCD "${cccd}" đã được đăng ký cho thí sinh "${isDuplicate.full_name}".`);
+    if (checkDuplicate(sbd, cccd, updated.id)) {
+      alert('LỖI: SBD hoặc CCCD đã được sử dụng bởi thí sinh khác.');
       return;
     }
 
@@ -147,50 +153,33 @@ const App: React.FC = () => {
       const { error } = await supabase.from('students').update({ ...updated, sbd, cccd }).eq('id', updated.id);
       if (error) throw error;
       fetchAdminData();
-      alert('Cập nhật thông tin thành công!');
+      alert('Cập nhật thành công!');
     } catch (err: any) {
-      alert('Lỗi khi cập nhật: ' + err.message);
+      handleDatabaseError(err);
     }
   };
 
   const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
-    // 1. Kiểm tra trùng lặp ngay trong chính file Excel vừa chọn
-    const seenSbd = new Set();
-    const seenCccd = new Set();
+    // 1. Kiểm tra trùng lặp trong file
+    const seen = new Set();
     for (const item of list) {
-      const s = item.sbd.trim().toUpperCase();
-      const c = item.cccd.trim();
-      if (seenSbd.has(s) || seenCccd.has(c)) {
-        alert(`LỖI FILE: Trong file nhập có dữ liệu bị trùng lặp (SBD: ${s} hoặc CCCD: ${c}). Hãy kiểm tra lại file Excel.`);
+      const key = `${item.sbd.toUpperCase()}|${item.cccd}`;
+      if (seen.has(key)) {
+        alert(`FILE LỖI: Phát hiện SBD hoặc CCCD trùng lặp ngay trong file Excel của bạn.`);
         return;
       }
-      seenSbd.add(s);
-      seenCccd.add(c);
+      seen.add(key);
     }
 
-    // 2. Kiểm tra trùng lặp với dữ liệu hiện có trong hệ thống
-    for (const item of list) {
-      const sbd = item.sbd.trim().toUpperCase();
-      const cccd = item.cccd.trim();
-      const isDuplicate = checkDuplicate(sbd, cccd);
-      if (isDuplicate) {
-        alert(`LỖI NHẬP LIỆU: Thí sinh "${item.full_name}" có SBD (${sbd}) hoặc CCCD (${cccd}) đã tồn tại trong hệ thống (Thí sinh: ${isDuplicate.full_name}).`);
-        return;
-      }
-    }
-
+    // 2. Gửi dữ liệu lên
     try {
-      const normalizedList = list.map(s => ({
-        ...s, 
-        sbd: s.sbd.trim().toUpperCase(), 
-        cccd: s.cccd.trim()
-      }));
-      const { error } = await supabase.from('students').insert(normalizedList);
+      const normalized = list.map(s => ({...s, sbd: s.sbd.trim().toUpperCase(), cccd: s.cccd.trim()}));
+      const { error } = await supabase.from('students').insert(normalized);
       if (error) throw error;
       fetchAdminData();
-      alert(`Đã nhập thành công ${list.length} thí sinh vào hệ thống!`);
+      alert(`Đã nhập thành công ${list.length} thí sinh!`);
     } catch (err: any) {
-      alert('Lỗi khi nhập dữ liệu từ Excel: ' + err.message);
+      handleDatabaseError(err);
     }
   };
 
@@ -217,7 +206,7 @@ const App: React.FC = () => {
         const { favicon_url, ...partial } = newConfig;
         await supabase.from('site_config').upsert([{ ...partial, id: 1 }]);
         setSiteConfig(prev => ({ ...prev, ...partial }));
-        alert("Lưu thành công cài đặt! (Tính năng Favicon yêu cầu cấu hình thêm SQL)");
+        alert("Lưu cấu hình thành công!");
       } else {
         setSiteConfig(newConfig);
         alert('Đã cập nhật cấu hình hệ thống!');
@@ -253,7 +242,7 @@ const App: React.FC = () => {
                 siteConfig={siteConfig}
                 onUpdate={handleUpdateStudent} 
                 onDelete={async (id) => { if(confirm('Xóa thí sinh này?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
-                onDeleteAll={async () => { if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch TOÀN BỘ dữ liệu?')) { await supabase.from('students').delete().neq('id', '0'); fetchAdminData(); } }} 
+                onDeleteAll={async () => { if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch dữ liệu?')) { await supabase.from('students').delete().neq('id', '0'); fetchAdminData(); } }} 
                 onAdd={handleAddStudent}
                 onBulkAdd={handleBulkAdd}
                 onConfigUpdate={saveConfig}
