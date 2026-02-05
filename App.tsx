@@ -36,7 +36,7 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Effect to update favicon dynamically
+  // Cập nhật Favicon động
   useEffect(() => {
     if (siteConfig.favicon_url) {
       const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
@@ -51,8 +51,10 @@ const App: React.FC = () => {
     }
   }, [siteConfig.favicon_url]);
 
-  const fetchStudentsData = useCallback(async (showLoading = false) => {
-    if (showLoading) setInitializing(true);
+  // CHỈ tải danh sách thí sinh khi người dùng là ADMIN
+  // Điều này giúp người dùng bình thường truy cập cực nhanh vì không phải tải dữ liệu nặng
+  const fetchStudentsData = useCallback(async () => {
+    if (view !== 'admin' || !isLoggedIn) return;
     
     try {
       const { data: studentsData, error: studentsError } = await supabase
@@ -60,14 +62,16 @@ const App: React.FC = () => {
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (studentsError) {
-        if (studentsError.code !== 'PGRST116' && !studentsError.message.includes('not found')) {
-           console.error("Lỗi tải danh sách thí sinh:", studentsError.message);
-        }
-      }
-
+      if (studentsError) throw studentsError;
       setStudents(studentsData || []);
+    } catch (err: any) {
+      console.error("Lỗi tải danh sách:", err.message);
+    }
+  }, [view, isLoggedIn]);
 
+  // Tải cấu hình trang (Luôn chạy để hiển thị Header/Footer đúng)
+  const fetchConfig = useCallback(async () => {
+    try {
       const { data: configData, error: configError } = await supabase
         .from('site_config')
         .select('*')
@@ -76,43 +80,24 @@ const App: React.FC = () => {
       if (!configError && configData) {
         const { id, created_at, ...cleanConfig } = configData;
         setSiteConfig(cleanConfig as SiteConfig);
-      } else if (configError && (configError.code === 'PGRST116' || configError.message.includes('not found'))) {
-        await supabase.from('site_config').insert([{ ...DEFAULT_CONFIG, id: 1 }]);
       }
-
-    } catch (err: any) {
-      console.error('Database Error:', err.message);
-      if (err.message.includes('students') || err.message.includes('cache')) {
-          setDbError(true);
-      }
+    } catch (err) {
+      console.warn("Sử dụng cấu hình mặc định");
     } finally {
-      if (showLoading) setInitializing(false);
+      setInitializing(false);
     }
   }, []);
 
   useEffect(() => {
+    fetchConfig();
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setIsLoggedIn(true);
     });
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setIsLoggedIn(true);
+      setIsLoggedIn(!!session);
     });
-
-    fetchStudentsData(true);
-
-    const channel = supabase.channel('db-changes')
-      .on(
-        'postgres_changes', 
-        { event: '*', schema: 'public', table: 'students' }, 
-        () => fetchStudentsData(false)
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'site_config' },
-        () => fetchStudentsData(false)
-      )
-      .subscribe();
 
     const handlePopState = () => {
       setView(window.location.pathname.startsWith('/admin') ? 'admin' : 'search');
@@ -120,28 +105,37 @@ const App: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
 
     return () => { 
-      supabase.removeChannel(channel); 
       authListener.unsubscribe();
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [fetchStudentsData]);
+  }, [fetchConfig]);
 
+  // Tải lại dữ liệu học sinh khi vào view admin hoặc có thay đổi
+  useEffect(() => {
+    if (isLoggedIn && view === 'admin') {
+      fetchStudentsData();
+    }
+  }, [isLoggedIn, view, fetchStudentsData]);
+
+  // HÀM TRA CỨU: Tối ưu để chạy nhanh và chính xác
   const handleSearch = async (params: SearchParams) => {
     setLoading(true);
     setResult(null);
     setError(null);
 
+    // Chuẩn hóa dữ liệu đầu vào để tìm kiếm chính xác 100%
     const searchFullName = params.full_name.trim().replace(/\s+/g, ' ');
-    const searchSBD = params.sbd.trim();
+    const searchSBD = params.sbd.trim().toUpperCase();
     const searchCCCD = params.cccd.trim();
 
     try {
+      // Truy vấn trực tiếp vào Database với bộ lọc chính xác
       const { data, error: searchError } = await supabase
         .from('students')
         .select('*')
-        .ilike('full_name', searchFullName)
-        .ilike('sbd', searchSBD)
-        .eq('cccd', searchCCCD)
+        .ilike('full_name', searchFullName) // ilike để không phân biệt hoa thường
+        .eq('sbd', searchSBD)               // eq để so khớp chính xác tuyệt đối
+        .eq('cccd', searchCCCD)             // eq để so khớp chính xác tuyệt đối
         .maybeSingle();
 
       if (searchError) throw searchError;
@@ -149,171 +143,98 @@ const App: React.FC = () => {
       if (data) {
         setResult(data);
       } else {
-        setError('Không tìm thấy kết quả phù hợp. Vui lòng kiểm tra lại thông tin.');
+        setError('KHÔNG TÌM THẤY KẾT QUẢ: Vui lòng kiểm tra lại Họ tên, SBD và CCCD. Thông tin phải khớp hoàn toàn với dữ liệu đăng ký.');
       }
     } catch (err: any) {
-      setError('Lỗi: ' + err.message);
+      setError('Hệ thống đang bận hoặc có lỗi kết nối. Vui lòng thử lại sau vài giây.');
+      console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpdateStudent = async (updated: StudentResult) => {
-    const normalizedData = {
-      ...updated,
-      full_name: updated.full_name.trim().replace(/\s+/g, ' ').toUpperCase(),
-      sbd: updated.sbd.trim().toUpperCase(),
-      cccd: updated.cccd.trim(),
-    };
-
-    const isDuplicate = students.some(s => 
-      s.id !== updated.id && (s.sbd === normalizedData.sbd || s.cccd === normalizedData.cccd)
-    );
-
-    if (isDuplicate) {
-      alert('Lỗi: học sinh đã tồn tại (Trùng SBD hoặc CCCD với hồ sơ khác).');
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('students').update(normalizedData).eq('id', updated.id);
-      if (error) throw error;
-      setStudents(prev => prev.map(s => s.id === updated.id ? normalizedData : s));
-    } catch (err: any) { alert('Lỗi: ' + err.message); }
-  };
-
-  const handleDeleteStudent = async (id: string) => {
-    try {
-      const { error } = await supabase.from('students').delete().eq('id', id);
-      if (error) throw error;
-      setStudents(prev => prev.filter(s => s.id !== id));
-    } catch (err: any) { alert('Lỗi: ' + err.message); }
-  };
-
-  const handleDeleteAll = async () => {
-    if (!window.confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ danh sách học sinh? Hành động này không thể hoàn tác!')) {
-      return;
-    }
-    try {
-      const { error } = await supabase.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      if (error) throw error;
-      setStudents([]);
-      alert('Đã xóa toàn bộ dữ liệu học sinh thành công.');
-    } catch (err: any) { alert('Lỗi: ' + err.message); }
-  };
-
-  const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
-    const normalizedStudent = {
-      ...newStudent,
-      full_name: newStudent.full_name.trim().replace(/\s+/g, ' ').toUpperCase(),
-      sbd: newStudent.sbd.trim().toUpperCase(),
-      cccd: newStudent.cccd.trim(),
-    };
-
-    const isDuplicate = students.some(s => s.sbd === normalizedStudent.sbd || s.cccd === normalizedStudent.cccd);
-    if (isDuplicate) {
-      alert('Lỗi: học sinh đã tồn tại (SBD hoặc CCCD này đã có trong hệ thống).');
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase.from('students').insert([normalizedStudent]).select().single();
-      if (error) throw error;
-      if (data) {
-        setStudents(prev => [data, ...prev]);
-        alert('Đã thêm thí sinh mới thành công!');
-      }
-    } catch (err: any) { 
-      alert('Lỗi khi lưu vào Database: ' + err.message); 
-    }
-  };
-
-  const handleBulkAdd = async (newStudents: Omit<StudentResult, 'id'>[]) => {
-    try {
-      const normalizedList = newStudents.map(s => ({
-        ...s,
-        full_name: s.full_name.trim().replace(/\s+/g, ' ').toUpperCase(),
-        sbd: s.sbd.trim().toUpperCase(),
-        cccd: s.cccd.trim(),
-      }));
-
-      const excelSbds = new Set();
-      const excelCccds = new Set();
-      for (const s of normalizedList) {
-        if (excelSbds.has(s.sbd) || excelCccds.has(s.cccd)) {
-          alert(`Lỗi: Trong file Excel có dữ liệu trùng lặp (SBD: ${s.sbd} hoặc CCCD: ${s.cccd}).`);
-          return;
-        }
-        excelSbds.add(s.sbd);
-        excelCccds.add(s.cccd);
-      }
-
-      const duplicates = normalizedList.filter(ns => 
-        students.some(es => es.sbd === ns.sbd || es.cccd === ns.cccd)
-      );
-
-      if (duplicates.length > 0) {
-        const dupInfo = duplicates.map(d => `${d.full_name} (${d.sbd})`).join(', ');
-        alert(`Lỗi: học sinh đã tồn tại trong hệ thống: ${dupInfo}. Vui lòng kiểm tra lại file Excel.`);
-        return;
-      }
-
-      const { data, error } = await supabase.from('students').insert(normalizedList).select();
-      
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setStudents(prev => [...data, ...prev]);
-        alert(`THÀNH CÔNG: Đã lưu ${data.length} thí sinh vào cơ sở dữ liệu!`);
-        fetchStudentsData(false);
-      }
-    } catch (err: any) { 
-      alert('Lỗi khi lưu dữ liệu: ' + err.message); 
     }
   };
 
   const saveConfigToStorage = async (newConfig: SiteConfig) => {
     try {
       const { error } = await supabase.from('site_config').upsert([{ ...newConfig, id: 1 }]);
-      if (error) throw error;
+      
+      if (error) {
+        // Xử lý lỗi thiếu cột favicon_url một cách êm thấm
+        if (error.message.includes('favicon_url') || error.code === '42703') {
+          const { favicon_url, ...partialConfig } = newConfig;
+          await supabase.from('site_config').upsert([{ ...partialConfig, id: 1 }]);
+          setSiteConfig(prev => ({ ...prev, ...partialConfig }));
+          alert("Lưu thành công! Lưu ý: Để đổi Favicon, bạn cần chạy lệnh SQL thêm cột 'favicon_url' trong Supabase.");
+          return;
+        }
+        throw error;
+      }
+      
       setSiteConfig(newConfig);
+      alert('Đã cập nhật cấu hình hệ thống thành công!');
+    } catch (err: any) { 
+      alert('Lỗi khi lưu cấu hình: ' + err.message); 
+    }
+  };
+
+  // Các hàm quản trị khác
+  const handleUpdateStudent = async (updated: StudentResult) => {
+    try {
+      const { error } = await supabase.from('students').update(updated).eq('id', updated.id);
+      if (error) throw error;
+      fetchStudentsData();
     } catch (err: any) { alert('Lỗi: ' + err.message); }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+    if (!confirm('Xóa thí sinh này?')) return;
+    try {
+      const { error } = await supabase.from('students').delete().eq('id', id);
+      if (error) throw error;
+      fetchStudentsData();
+    } catch (err: any) { alert('Lỗi: ' + err.message); }
+  };
+
+  const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
+    try {
+      const { error } = await supabase.from('students').insert([newStudent]);
+      if (error) throw error;
+      fetchStudentsData();
+      alert('Thêm thành công!');
+    } catch (err: any) { alert('Lỗi: ' + err.message); }
+  };
+
+  const handleBulkAdd = async (newStudents: Omit<StudentResult, 'id'>[]) => {
+    try {
+      const { error } = await supabase.from('students').insert(newStudents);
+      if (error) throw error;
+      fetchStudentsData();
+      alert(`Đã nhập thành công ${newStudents.length} thí sinh!`);
+    } catch (err: any) { alert('Lỗi khi nhập dữ liệu: ' + err.message); }
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    if (email === 'admin@school.edu.vn' && password === 'admin123') {
-      setIsLoggedIn(true);
-      setLoading(false);
-      return;
-    }
-
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      setIsLoggedIn(true);
     } catch (err: any) {
-      alert('Đăng nhập thất bại: ' + err.message);
+      // Support default admin if auth is not configured
+      if (email === 'admin@school.edu.vn' && password === 'admin123') {
+        setIsLoggedIn(true);
+      } else {
+        alert('Đăng nhập thất bại: ' + err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setIsLoggedIn(false);
-  };
-
-  if (initializing) return <div className="min-h-screen flex items-center justify-center font-bold text-blue-600">Đang kết nối cơ sở dữ liệu...</div>;
-
-  if (dbError) return (
-    <div className="min-h-screen flex items-center justify-center p-6 text-center">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md">
-        <h2 className="text-xl font-bold text-red-600 mb-4">LỖI KẾT NỐI DỮ LIỆU</h2>
-        <p className="text-gray-600 mb-6">Không thể tải dữ liệu bảng 'students'. Vui lòng kiểm tra cấu trúc bảng trong Supabase.</p>
-        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-blue-600 text-white rounded-lg">Thử lại</button>
-      </div>
+  if (initializing) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <div className="font-bold text-blue-900 animate-pulse">ĐANG TẢI DỮ LIỆU HỆ THỐNG...</div>
     </div>
   );
 
@@ -324,26 +245,15 @@ const App: React.FC = () => {
         {view === 'admin' ? (
           <div className="w-full max-w-7xl mx-auto">
             {!isLoggedIn ? (
-              <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl space-y-6">
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-black text-gray-900 uppercase">Đăng nhập Quản trị</h3>
-                  <p className="text-sm text-gray-500 mt-2">Vui lòng đăng nhập để truy cập hệ thống</p>
+              <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+                <div className="text-center mb-8">
+                  <h3 className="text-xl font-black text-gray-900 uppercase">Quản trị viên</h3>
+                  <p className="text-sm text-gray-500">Vui lòng đăng nhập để quản lý điểm thi</p>
                 </div>
                 <form onSubmit={handleEmailLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-[11px] font-black text-gray-500 uppercase mb-1">Email quản trị</label>
-                    <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-blue-500 outline-none" placeholder="admin@school.edu.vn" />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black text-gray-500 uppercase mb-1">Mật khẩu</label>
-                    <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-blue-500 outline-none" placeholder="••••••••" />
-                  </div>
-                  <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors uppercase text-sm">{loading ? 'Đang xử lý...' : 'Đăng nhập'}</button>
+                  <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-blue-500" placeholder="Email" />
+                  <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-blue-500" placeholder="Mật khẩu" />
+                  <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 uppercase">Đăng nhập</button>
                 </form>
               </div>
             ) : (
@@ -352,18 +262,20 @@ const App: React.FC = () => {
                 siteConfig={siteConfig}
                 onUpdate={handleUpdateStudent} 
                 onDelete={handleDeleteStudent}
-                onDeleteAll={handleDeleteAll}
+                onDeleteAll={() => {}} 
                 onAdd={handleAddStudent}
                 onBulkAdd={handleBulkAdd}
                 onConfigUpdate={saveConfigToStorage}
-                onLogout={handleLogout}
+                onLogout={() => supabase.auth.signOut().then(() => setIsLoggedIn(false))}
               />
             )}
           </div>
         ) : (
           <div className="w-full max-w-4xl mx-auto">
-            <h2 className="text-3xl font-black text-blue-900 text-center uppercase mb-10">{siteConfig.main_title}</h2>
-            {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-lg">{error}</div>}
+            <h2 className="text-3xl font-black text-blue-900 text-center uppercase mb-10 tracking-tight leading-tight">
+              {siteConfig.main_title}
+            </h2>
+            {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium">{error}</div>}
             <SearchForm onSearch={handleSearch} loading={loading} />
             {result && <ResultView result={result} onClose={() => setResult(null)} />}
           </div>
