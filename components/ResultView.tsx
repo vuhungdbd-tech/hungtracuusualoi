@@ -50,11 +50,11 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
               <span className="text-[#1e40af] font-black text-xl">{result.subject}</span>
             </div>
 
-            {/* Điểm - Vẫn là trọng tâm nhưng thu nhỏ lại một chút cho cân đối */}
+            {/* Điểm - Hiển thị nguyên bản giá trị số */}
             <div className="flex justify-between items-center px-6 py-6 bg-blue-50/40 rounded-xl mt-2 mb-2 mx-2">
               <span className="text-blue-800 font-black text-[10px] uppercase tracking-widest">TỔNG ĐIỂM</span>
               <div className="flex items-baseline space-x-2">
-                <span className="text-black font-black text-5xl tracking-tighter">{result.score.toFixed(2)}</span>
+                <span className="text-black font-black text-5xl tracking-tighter">{result.score}</span>
                 <span className="text-gray-400 font-bold text-sm uppercase">Điểm</span>
               </div>
             </div>
