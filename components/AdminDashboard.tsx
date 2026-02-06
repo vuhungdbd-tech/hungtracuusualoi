@@ -38,7 +38,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ['Họ và tên', 'Số báo danh', 'CCCD', 'Trường', 'Môn thi', 'Điểm', 'Xếp giải'];
+    const headers = ['Họ và tên', 'Số báo danh', 'CCCD (12 số)', 'Trường', 'Môn thi', 'Điểm', 'Xếp giải'];
     const sampleData = [
       ['NGUYỄN VĂN A', 'HSG001', '001203004567', 'THPT Chuyên', 'Toán học', 18.5, 'Giải Nhất'],
       ['TRẦN THỊ B', 'HSG002', '001203004568', 'THPT A', 'Vật lý', 15.0, 'Giải Ba']
@@ -48,12 +48,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
 
     const wscols = [
-      { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }
+      { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 10 }, { wch: 15 }
     ];
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, "Mau_Nhap_Lieu");
-    XLSX.writeFile(wb, "Mau_Nhap_Diem_HSG.xlsx");
+    XLSX.writeFile(wb, "Mau_Tra_Cuu_Diem.xlsx");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,12 +67,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
         
-        const newStudents = jsonData.slice(1).map(row => {
+        const invalidRows: string[] = [];
+        const newStudents = jsonData.slice(1).map((row, idx) => {
           const fullName = String(row[0] || '').trim().toUpperCase();
           const sbd = String(row[1] || '').trim().toUpperCase();
-          // Lấy CCCD và loại bỏ toàn bộ ký tự không phải số
           const cccd = String(row[2] || '').replace(/\D/g, '').trim();
           
+          if (cccd.length !== 12) {
+            invalidRows.push(`Hàng ${idx + 2}: CCCD "${cccd}" không đủ 12 số.`);
+            return null;
+          }
+
           return {
             full_name: fullName,
             sbd: sbd,
@@ -82,17 +87,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
             score: parseFloat(row[5]) || 0,
             award: String(row[6] || 'Không đạt').trim()
           };
-        }).filter(s => s.full_name && s.sbd);
+        }).filter(s => s !== null && s.full_name && s.sbd) as Omit<StudentResult, 'id'>[];
         
+        if (invalidRows.length > 0) {
+          if (!confirm(`Phát hiện ${invalidRows.length} hàng có CCCD không đủ 12 số (sẽ bị loại bỏ). Tiếp tục nhập số còn lại?`)) {
+            return;
+          }
+        }
+
         if (newStudents.length === 0) {
-          alert("Không tìm thấy dữ liệu hợp lệ trong file Excel.");
+          alert("Không tìm thấy dữ liệu hợp lệ (Yêu cầu Họ tên, SBD và CCCD 12 số).");
           return;
         }
 
         onBulkAdd(newStudents);
         setCurrentPage(1);
       } catch (error) {
-        alert("Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.");
+        alert("Lỗi: Không thể đọc file Excel. Kiểm tra lại định dạng.");
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
@@ -102,89 +113,92 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
-        <div><h3 className="text-xl font-black text-blue-900">QUẢN TRỊ DỮ LIỆU ({students.length})</h3></div>
-        <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-8 rounded-3xl shadow-sm border border-slate-100 gap-6">
+        <div>
+           <h3 className="text-2xl font-black text-blue-900 tracking-tight">DỮ LIỆU THÍ SINH</h3>
+           <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Tổng cộng: {students.length} bản ghi</p>
+        </div>
+        <div className="flex flex-wrap gap-3 justify-center">
           <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx" onChange={handleFileUpload} />
           
-          <button onClick={handleDownloadTemplate} className="px-4 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg font-bold text-xs uppercase flex items-center space-x-1 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <button onClick={handleDownloadTemplate} className="px-5 py-3 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl font-black text-[10px] uppercase flex items-center space-x-2 transition-all shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             <span>Tải file mẫu</span>
           </button>
 
-          <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg font-bold text-xs uppercase flex items-center space-x-1 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-            <span>Nhập Excel</span>
+          <button onClick={() => fileInputRef.current?.click()} className="px-5 py-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl font-black text-[10px] uppercase flex items-center space-x-2 transition-all shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            <span>Nhập từ Excel</span>
           </button>
 
-          <div className="w-px h-8 bg-gray-200 mx-1 hidden md:block"></div>
+          <div className="w-px h-10 bg-slate-100 mx-2 hidden md:block"></div>
 
-          <button onClick={onDeleteAll} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs uppercase transition-colors flex items-center space-x-1">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            <span>XÓA TẤT CẢ</span>
+          <button onClick={onDeleteAll} className="px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-[10px] uppercase transition-all flex items-center space-x-2 shadow-lg shadow-rose-100">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            <span>XÓA SẠCH DỮ LIỆU</span>
           </button>
 
-          <button onClick={() => setIsConfiguring(true)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs uppercase transition-colors">Cấu hình</button>
-          <button onClick={() => setIsAdding(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase transition-colors">Thêm mới</button>
-          <button onClick={onLogout} className="px-4 py-2 border hover:bg-gray-50 rounded-lg font-bold text-xs uppercase transition-colors">Thoát</button>
+          <button onClick={() => setIsConfiguring(true)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-black text-[10px] uppercase transition-all">Cấu hình</button>
+          <button onClick={() => setIsAdding(true)} className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[10px] uppercase transition-all shadow-lg shadow-blue-100">Thêm mới</button>
+          <button onClick={onLogout} className="px-5 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl font-black text-[10px] uppercase transition-all">Thoát</button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead className="bg-gray-100">
-              <tr className="text-[11px] font-black uppercase text-gray-600">
-                <th className="p-3 border-b border-r border-gray-200 w-24">SBD</th>
-                <th className="p-3 border-b border-r border-gray-200">Họ và tên</th>
-                <th className="p-3 border-b border-r border-gray-200 w-32">CCCD</th>
-                <th className="p-3 border-b border-r border-gray-200">Trường</th>
-                <th className="p-3 border-b border-r border-gray-200 w-32">Môn thi</th>
-                <th className="p-3 border-b border-r border-gray-200 w-20 text-center">Điểm</th>
-                <th className="p-3 border-b border-r border-gray-200 w-28">Giải</th>
-                <th className="p-3 border-b border-gray-200 w-24 text-center">Thao tác</th>
+          <table className="w-full text-left border-collapse min-w-[1100px]">
+            <thead className="bg-slate-50">
+              <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                <th className="p-4 border-b border-r border-slate-100 w-28">SBD</th>
+                <th className="p-4 border-b border-r border-slate-100">Họ và tên thí sinh</th>
+                <th className="p-4 border-b border-r border-slate-100 w-40">CCCD (12 Số)</th>
+                <th className="p-4 border-b border-r border-slate-100">Trường / Đơn vị</th>
+                <th className="p-4 border-b border-r border-slate-100 w-36">Môn thi</th>
+                <th className="p-4 border-b border-r border-slate-100 w-20 text-center">Điểm</th>
+                <th className="p-4 border-b border-r border-slate-100 w-32">Xếp giải</th>
+                <th className="p-4 border-b border-slate-100 w-28 text-center">Thao tác</th>
               </tr>
             </thead>
             <tbody className="text-sm">
               {currentData.length > 0 ? currentData.map((s, index) => (
-                <tr key={s.id} className={`hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                  <td className="p-3 border-b border-r border-gray-100 font-bold text-blue-600">{s.sbd}</td>
-                  <td className="p-3 border-b border-r border-gray-100 font-bold uppercase">{s.full_name}</td>
-                  <td className="p-3 border-b border-r border-gray-100 font-mono text-xs">{s.cccd}</td>
-                  <td className="p-3 border-b border-r border-gray-100">{s.school}</td>
-                  <td className="p-3 border-b border-r border-gray-100">{s.subject}</td>
-                  <td className="p-3 border-b border-r border-gray-100 text-center font-bold">{s.score}</td>
-                  <td className="p-3 border-b border-r border-gray-100 font-bold text-red-600">{s.award}</td>
-                  <td className="p-3 border-b text-center">
+                <tr key={s.id} className={`hover:bg-blue-50/50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
+                  <td className="p-4 border-b border-r border-slate-100 font-black text-blue-600 tracking-tight">{s.sbd}</td>
+                  <td className="p-4 border-b border-r border-slate-100 font-black uppercase text-slate-800">{s.full_name}</td>
+                  <td className="p-4 border-b border-r border-slate-100 font-mono text-xs font-bold text-slate-500">{s.cccd}</td>
+                  <td className="p-4 border-b border-r border-slate-100 text-slate-600 font-medium">{s.school}</td>
+                  <td className="p-4 border-b border-r border-slate-100 text-slate-600 font-bold">{s.subject}</td>
+                  <td className="p-4 border-b border-r border-slate-100 text-center font-black text-base">{s.score}</td>
+                  <td className="p-4 border-b border-r border-slate-100 font-black text-rose-600 italic">{s.award}</td>
+                  <td className="p-4 border-b text-center">
                     <div className="flex items-center justify-center space-x-2">
-                      <button onClick={() => setEditingStudent(s)} className="p-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Sửa">
+                      <button onClick={() => setEditingStudent(s)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all" title="Sửa">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
-                      <button onClick={() => onDelete(s.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200" title="Xóa">
+                      <button onClick={() => onDelete(s.id)} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-all" title="Xóa">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={8} className="p-8 text-center text-gray-400 italic">Chưa có dữ liệu.</td></tr>
+                <tr><td colSpan={8} className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">Hệ thống chưa có dữ liệu thí sinh</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
         {totalPages > 1 && (
-          <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-            <div className="text-sm text-gray-500">
-              Hiển thị <span className="font-bold">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-bold">{Math.min(currentPage * ITEMS_PER_PAGE, students.length)}</span> trong tổng số <span className="font-bold">{students.length}</span> học sinh
+          <div className="bg-slate-50 px-8 py-5 flex items-center justify-between border-t border-slate-100">
+            <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+              Hiển thị <span className="text-slate-900">{(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, students.length)}</span> / {students.length} hồ sơ
             </div>
-            <div className="flex items-center space-x-1">
+            <div className="flex items-center space-x-2">
               <button 
                 onClick={() => goToPage(currentPage - 1)} 
                 disabled={currentPage === 1}
-                className="p-2 border rounded-lg hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2.5 border border-slate-200 rounded-xl hover:bg-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
               </button>
               
               {[...Array(totalPages)].map((_, i) => {
@@ -194,13 +208,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
                     <button 
                       key={pageNum}
                       onClick={() => goToPage(pageNum)}
-                      className={`min-w-[40px] px-3 py-2 text-sm font-bold border rounded-lg transition-colors ${currentPage === pageNum ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'hover:bg-white text-gray-600 bg-transparent'}`}
+                      className={`min-w-[40px] px-3 py-2 text-xs font-black border rounded-xl transition-all ${currentPage === pageNum ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' : 'hover:bg-white text-slate-500 bg-transparent border-slate-200'}`}
                     >
                       {pageNum}
                     </button>
                   );
                 } else if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
-                  return <span key={pageNum} className="px-2 text-gray-400">...</span>;
+                  return <span key={pageNum} className="px-2 text-slate-300">...</span>;
                 }
                 return null;
               })}
@@ -208,9 +222,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ students, siteConfig, o
               <button 
                 onClick={() => goToPage(currentPage + 1)} 
                 disabled={currentPage === totalPages}
-                className="p-2 border rounded-lg hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2.5 border border-slate-200 rounded-xl hover:bg-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
           </div>
