@@ -9,12 +9,12 @@ import { SearchParams, StudentResult, ViewMode, SiteConfig } from './types';
 import { supabase } from './lib/supabase';
 
 const DEFAULT_CONFIG: SiteConfig = {
-  header_top: "SỞ GIÁO DỤC VÀ ĐÀO TẠO THÀNH PHỐ",
-  header_sub: "TRƯỜNG TRUNG HỌC PHỔ THÔNG CHUYÊN",
-  main_title: "KỲ THI CHỌN HỌC SINH GIỎI THÀNH PHỐ",
-  footer_copyright: "Bản quyền thuộc về Trường THPT Chuyên – Phòng GD&ĐT Thành phố",
-  footer_address: "Địa chỉ: Số 01 Đại lộ Giáo dục, Quận Trung tâm, TP. Hà Nội",
-  footer_support: "Hỗ trợ kỹ thuật: (024) 123 4567 - Email: congthongtin@school.edu.vn",
+  header_top: "PHÒNG GIÁO DỤC VÀ ĐÀO TẠO",
+  header_sub: "HỆ THỐNG TRA CỨU ĐIỂM THI TRỰC TUYẾN",
+  main_title: "TRA CỨU KÌ THI HỌC SINH GIỎI CÁC MÔN VĂN HÓA CẤP XÃ, NĂM HỌC 2025-2026",
+  footer_copyright: "Bản quyền thuộc về Ban Tổ chức Kỳ thi Học sinh giỏi",
+  footer_address: "Địa chỉ: Trụ sở UBND Xã - Ban Giáo dục & Đào tạo",
+  footer_support: "Hỗ trợ kỹ thuật: 1900 xxxx - Email: hotro@giaoduc.gov.vn",
   favicon_url: "https://cdn-icons-png.flaticon.com/512/2232/2232688.png"
 };
 
@@ -147,7 +147,6 @@ const App: React.FC = () => {
     let successCount = 0;
     let failCount = 0;
     
-    // Kiểm tra và lọc trùng lặp trước khi gửi
     const { data: existing } = await supabase.from('students').select('sbd, cccd');
     const existingSBDs = new Set(existing?.map(e => e.sbd) || []);
     const existingCCCDs = new Set(existing?.map(e => e.cccd) || []);
@@ -231,9 +230,11 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="w-full max-w-4xl mx-auto">
-            <h2 className="text-3xl font-black text-blue-900 text-center uppercase mb-10 tracking-tight leading-tight">
+            {/* Cấu hình tiêu đề bé hơn, màu xanh đậm như hình mẫu */}
+            <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-10 tracking-normal leading-tight max-w-2xl mx-auto">
               {siteConfig.main_title}
             </h2>
+            
             {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium animate-pulse">{error}</div>}
             
             <div className="mb-10">
