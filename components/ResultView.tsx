@@ -10,10 +10,10 @@ interface ResultViewProps {
 const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="w-full max-w-lg bg-white rounded-2xl overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] border border-gray-100 animate-in zoom-in-95 duration-300 font-times">
-        {/* Header - Gọn gàng hơn */}
+      <div className="w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] border border-gray-100 animate-in zoom-in-95 duration-300 font-times">
+        {/* Header - Trang trọng, nhỏ gọn */}
         <div className="bg-[#1e40af] px-6 py-4 flex justify-between items-center text-white relative">
-          <h3 className="font-bold uppercase tracking-[0.05em] text-lg">KẾT QUẢ CHI TIẾT</h3>
+          <h3 className="font-bold uppercase tracking-[0.05em] text-base">KẾT QUẢ TRA CỨU CHI TIẾT</h3>
           <button 
             onClick={onClose} 
             className="hover:rotate-90 transition-all duration-300 p-1.5 bg-white/10 hover:bg-white/20 rounded-full"
@@ -25,58 +25,61 @@ const ResultView: React.FC<ResultViewProps> = ({ result, onClose }) => {
           </button>
         </div>
 
-        <div className="p-2 bg-white">
-          {/* Thông tin học sinh - Bố cục tối ưu diện tích */}
-          <div className="space-y-0.5">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
-              <span className="text-gray-400 font-bold text-[10px] uppercase tracking-wider">HỌ VÀ TÊN</span>
-              <span className="text-[#1e40af] font-black text-xl uppercase">{result.full_name}</span>
+        <div className="p-1 bg-white">
+          <div className="space-y-px">
+            {/* Họ tên */}
+            <div className="px-6 py-3.5 border-b border-gray-50">
+              <div className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mb-0.5">HỌ VÀ TÊN THÍ SINH</div>
+              <div className="text-[#1e40af] font-black text-xl uppercase leading-tight">{result.full_name}</div>
             </div>
 
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
-              <span className="text-gray-400 font-bold text-[10px] uppercase tracking-wider">SỐ BÁO DANH</span>
-              <span className="text-black font-black text-xl font-mono">{result.sbd}</span>
+            {/* SBD & Môn thi - Chia cột để tiết kiệm diện tích */}
+            <div className="grid grid-cols-2 border-b border-gray-50">
+              <div className="px-6 py-3.5 border-r border-gray-50">
+                <div className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mb-0.5">SỐ BÁO DANH</div>
+                <div className="text-black font-black text-lg font-mono tracking-tighter">{result.sbd}</div>
+              </div>
+              <div className="px-6 py-3.5">
+                <div className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mb-0.5">MÔN DỰ THI</div>
+                <div className="text-[#1e40af] font-black text-lg">{result.subject}</div>
+              </div>
             </div>
 
-            <div className="flex justify-between items-start px-6 py-4 border-b border-gray-50">
-              <span className="text-gray-400 font-bold text-[10px] uppercase tracking-wider mt-1">ĐƠN VỊ</span>
-              <span className="text-black font-bold text-right max-w-[280px] leading-tight text-lg">
+            {/* Đơn vị - Chỉnh sửa căn chỉnh dọc để không bị rơi chữ */}
+            <div className="px-6 py-3.5 border-b border-gray-50">
+              <div className="text-gray-400 font-bold text-[9px] uppercase tracking-widest mb-1">ĐƠN VỊ / TRƯỜNG HỌC</div>
+              <div className="text-black font-bold leading-snug text-base md:text-lg">
                 {result.school || "---"}
-              </span>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-50">
-              <span className="text-gray-400 font-bold text-[10px] uppercase tracking-wider">MÔN DỰ THI</span>
-              <span className="text-[#1e40af] font-black text-xl">{result.subject}</span>
-            </div>
-
-            {/* Điểm - Hiển thị nguyên bản giá trị số */}
-            <div className="flex justify-between items-center px-6 py-6 bg-blue-50/40 rounded-xl mt-2 mb-2 mx-2">
-              <span className="text-blue-800 font-black text-[10px] uppercase tracking-widest">TỔNG ĐIỂM</span>
-              <div className="flex items-baseline space-x-2">
-                <span className="text-black font-black text-5xl tracking-tighter">{result.score}</span>
-                <span className="text-gray-400 font-bold text-sm uppercase">Điểm</span>
+            {/* Điểm - Trọng tâm */}
+            <div className="mx-3 my-3 p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
+              <div className="text-blue-800 font-black text-[10px] uppercase tracking-widest">TỔNG ĐIỂM THI</div>
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-black font-black text-5xl tracking-tighter leading-none">{result.score}</span>
+                <span className="text-gray-400 font-bold text-xs uppercase">Điểm</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Footer - Nút nhỏ gọn hơn */}
-        <div className="px-6 py-5 bg-slate-50 border-t border-gray-100 flex justify-end gap-3">
+        {/* Nút hành động */}
+        <div className="px-6 py-4 bg-slate-50 border-t border-gray-100 flex justify-end gap-2.5">
            <button 
              onClick={onClose}
-             className="px-5 py-2.5 bg-white border border-gray-200 text-gray-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
+             className="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95"
            >
              ĐÓNG
            </button>
            <button 
              onClick={() => window.print()} 
-             className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.15em] hover:bg-black transition-all shadow-lg flex items-center space-x-2 active:scale-95 border-b-2 border-slate-700"
+             className="px-5 py-2 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase tracking-[0.1em] hover:bg-black transition-all shadow-md flex items-center space-x-2 active:scale-95"
            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              <span>IN PHIẾU ĐIỂM</span>
+              <span>IN PHIẾU</span>
            </button>
         </div>
       </div>
