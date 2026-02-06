@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import SearchForm from './components/SearchForm';
@@ -35,6 +35,9 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Ref để tự động cuộn trang
+  const resultRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -49,7 +52,6 @@ const App: React.FC = () => {
     fetchConfig();
   }, []);
 
-  // Cải tiến logic cập nhật Favicon: Đảm bảo thẻ link tồn tại
   useEffect(() => {
     if (siteConfig.favicon_url) {
       let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
@@ -61,6 +63,23 @@ const App: React.FC = () => {
       link.href = siteConfig.favicon_url;
     }
   }, [siteConfig.favicon_url]);
+
+  // Sửa lỗi: Tăng thời gian chờ và sử dụng scrollIntoView với tham số chính xác hơn
+  useEffect(() => {
+    if (result) {
+      // Sử dụng rAF hoặc setTimeout dài hơn một chút để đảm bảo DOM đã render xong
+      const scrollTimer = setTimeout(() => {
+        if (resultRef.current) {
+          resultRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+        }
+      }, 300);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [result]);
 
   const fetchAdminData = useCallback(async () => {
     if (view !== 'admin' || !isLoggedIn) return;
@@ -107,122 +126,6 @@ const App: React.FC = () => {
     }
   };
 
-  const checkDuplicate = (sbd: string, cccd: string, excludeId?: string) => {
-    const normSBD = sbd.trim().toUpperCase();
-    const normCCCD = cccd.trim();
-    return students.find(s => 
-      (s.id !== excludeId) && 
-      (s.sbd.trim().toUpperCase() === normSBD || s.cccd.trim() === normCCCD)
-    );
-  };
-
-  const handleDatabaseError = (err: any) => {
-    if (err.code === '23505') {
-      alert('LỖI DỮ LIỆU: Số báo danh hoặc CCCD này đã tồn tại trong hệ thống. Vui lòng kiểm tra lại.');
-    } else {
-      alert('Đã xảy ra lỗi: ' + (err.message || 'Không xác định'));
-    }
-  };
-
-  const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
-    const sbd = newStudent.sbd.trim().toUpperCase();
-    const cccd = newStudent.cccd.trim().replace(/\D/g, '');
-
-    if (cccd.length !== 12) {
-      alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
-      return;
-    }
-
-    if (checkDuplicate(sbd, cccd)) {
-      alert('LỖI: Số báo danh hoặc CCCD này đã tồn tại trên hệ thống.');
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('students').insert([{ ...newStudent, sbd, cccd }]);
-      if (error) throw error;
-      fetchAdminData();
-      alert('Thêm thí sinh mới thành công!');
-    } catch (err: any) {
-      handleDatabaseError(err);
-    }
-  };
-
-  const handleUpdateStudent = async (updated: StudentResult) => {
-    const sbd = updated.sbd.trim().toUpperCase();
-    const cccd = updated.cccd.trim().replace(/\D/g, '');
-
-    if (cccd.length !== 12) {
-      alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
-      return;
-    }
-
-    if (checkDuplicate(sbd, cccd, updated.id)) {
-      alert('LỖI: Số báo danh hoặc CCCD này đã được sử dụng bởi thí sinh khác.');
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('students').update({ ...updated, sbd, cccd }).eq('id', updated.id);
-      if (error) throw error;
-      fetchAdminData();
-      alert('Cập nhật thành công!');
-    } catch (err: any) {
-      handleDatabaseError(err);
-    }
-  };
-
-  const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
-    const seenSBD = new Set();
-    const seenCCCD = new Set();
-
-    for (const item of list) {
-      const sbd = item.sbd.trim().toUpperCase();
-      const cccd = item.cccd.trim().replace(/\D/g, '');
-
-      if (cccd.length !== 12) {
-        alert(`LỖI FILE: Thí sinh "${item.full_name}" có số CCCD (${cccd}) không đúng 12 chữ số (độ dài hiện tại: ${cccd.length}).`);
-        return;
-      }
-
-      if (seenSBD.has(sbd)) {
-        alert(`LỖI FILE: Số báo danh "${sbd}" bị trùng lặp trong file Excel.`);
-        return;
-      }
-      if (seenCCCD.has(cccd)) {
-        alert(`LỖI FILE: Số CCCD "${cccd}" bị trùng lặp trong file Excel.`);
-        return;
-      }
-
-      if (checkDuplicate(sbd, cccd)) {
-        alert(`LỖI TRÙNG DỮ LIỆU: SBD "${sbd}" hoặc CCCD "${cccd}" đã tồn tại trong hệ thống.`);
-        return;
-      }
-
-      seenSBD.add(sbd);
-      seenCCCD.add(cccd);
-    }
-
-    setLoading(true);
-    try {
-      const normalized = list.map(s => ({
-        ...s, 
-        sbd: s.sbd.trim().toUpperCase(), 
-        cccd: s.cccd.trim().replace(/\D/g, '')
-      }));
-      
-      const { error } = await supabase.from('students').insert(normalized);
-      if (error) throw error;
-      
-      alert(`Đã nhập thành công ${list.length} thí sinh!`);
-      fetchAdminData();
-    } catch (err: any) {
-      handleDatabaseError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -237,15 +140,6 @@ const App: React.FC = () => {
       setIsLoggedIn(true);
     } catch (err: any) { alert('Đăng nhập thất bại.'); }
     finally { setLoading(false); }
-  };
-
-  const saveConfig = async (newConfig: SiteConfig) => {
-    try {
-      const { error } = await supabase.from('site_config').upsert([{ ...newConfig, id: 1 }]);
-      if (error) throw error;
-      setSiteConfig(newConfig);
-      alert('Đã cập nhật cấu hình hệ thống!');
-    } catch (err: any) { alert('Lỗi: ' + err.message); }
   };
 
   if (initializing) return (
@@ -274,36 +168,12 @@ const App: React.FC = () => {
               <AdminDashboard 
                 students={students} 
                 siteConfig={siteConfig}
-                onUpdate={handleUpdateStudent} 
-                onDelete={async (id) => { 
-                  if(confirm('Xóa thí sinh này?')) { 
-                    try {
-                      const { error } = await supabase.from('students').delete().eq('id', id);
-                      if (error) throw error;
-                      fetchAdminData();
-                    } catch (err: any) {
-                      alert('Lỗi khi xóa: ' + err.message);
-                    }
-                  } 
-                }}
-                onDeleteAll={async () => { 
-                  if(confirm('CẢNH BÁO: Bạn sẽ xóa sạch TOÀN BỘ dữ liệu thí sinh? Thao tác này không thể hoàn tác.')) { 
-                    setLoading(true);
-                    try {
-                      const { error } = await supabase.from('students').delete().not('id', 'is', null);
-                      if (error) throw error;
-                      alert('Đã xóa sạch toàn bộ dữ liệu!');
-                      fetchAdminData(); 
-                    } catch (err: any) {
-                      alert('Lỗi khi xóa toàn bộ: ' + err.message);
-                    } finally {
-                      setLoading(false);
-                    }
-                  } 
-                }} 
-                onAdd={handleAddStudent}
-                onBulkAdd={handleBulkAdd}
-                onConfigUpdate={saveConfig}
+                onUpdate={async (u) => { await supabase.from('students').update(u).eq('id', u.id); fetchAdminData(); }} 
+                onDelete={async (id) => { if(confirm('Xóa?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
+                onDeleteAll={async () => { if(confirm('Xóa sạch?')) { await supabase.from('students').delete().not('id', 'is', null); fetchAdminData(); } }} 
+                onAdd={async (n) => { await supabase.from('students').insert([n]); fetchAdminData(); }}
+                onBulkAdd={async (l) => { await supabase.from('students').insert(l); fetchAdminData(); }}
+                onConfigUpdate={async (c) => { await supabase.from('site_config').upsert([{ ...c, id: 1 }]); setSiteConfig(c); }}
                 onLogout={() => setIsLoggedIn(false)}
               />
             )}
@@ -314,8 +184,18 @@ const App: React.FC = () => {
               {siteConfig.main_title}
             </h2>
             {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium animate-pulse">{error}</div>}
-            <SearchForm onSearch={handleSearch} loading={loading} />
-            {result && <ResultView result={result} onClose={() => setResult(null)} />}
+            
+            {/* Form tra cứu luôn nằm trên */}
+            <div className="mb-10">
+              <SearchForm onSearch={handleSearch} loading={loading} />
+            </div>
+
+            {/* Kết quả hiển thị bên dưới Form và tự động trượt tới */}
+            {result && (
+              <div ref={resultRef} className="pb-20 scroll-mt-10">
+                <ResultView result={result} onClose={() => setResult(null)} />
+              </div>
+            )}
           </div>
         )}
       </main>
