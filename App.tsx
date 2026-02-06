@@ -35,7 +35,6 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Ref để tự động cuộn trang
   const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,10 +63,8 @@ const App: React.FC = () => {
     }
   }, [siteConfig.favicon_url]);
 
-  // Sửa lỗi: Tăng thời gian chờ và sử dụng scrollIntoView với tham số chính xác hơn
   useEffect(() => {
     if (result) {
-      // Sử dụng rAF hoặc setTimeout dài hơn một chút để đảm bảo DOM đã render xong
       const scrollTimer = setTimeout(() => {
         if (resultRef.current) {
           resultRef.current.scrollIntoView({ 
@@ -126,6 +123,53 @@ const App: React.FC = () => {
     }
   };
 
+  const checkDuplicate = async (sbd: string, cccd: string, excludeId?: string) => {
+    let query = supabase.from('students').select('id').or(`sbd.eq.${sbd},cccd.eq.${cccd}`);
+    if (excludeId) query = query.neq('id', excludeId);
+    const { data } = await query;
+    return data && data.length > 0;
+  };
+
+  const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
+    if (await checkDuplicate(newStudent.sbd, newStudent.cccd)) {
+      alert(`LỖI: Số báo danh ${newStudent.sbd} hoặc CCCD ${newStudent.cccd} đã tồn tại trong hệ thống!`);
+      return;
+    }
+    const { error } = await supabase.from('students').insert([newStudent]);
+    if (error) alert('Lỗi: ' + error.message);
+    else {
+      alert('Đã thêm 01 học sinh mới thành công.');
+      fetchAdminData();
+    }
+  };
+
+  const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Kiểm tra và lọc trùng lặp trước khi gửi
+    const { data: existing } = await supabase.from('students').select('sbd, cccd');
+    const existingSBDs = new Set(existing?.map(e => e.sbd) || []);
+    const existingCCCDs = new Set(existing?.map(e => e.cccd) || []);
+
+    const toInsert = list.filter(item => {
+      if (existingSBDs.has(item.sbd) || existingCCCDs.has(item.cccd)) {
+        failCount++;
+        return false;
+      }
+      return true;
+    });
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('students').insert(toInsert);
+      if (!error) successCount = toInsert.length;
+      else alert('Lỗi: ' + error.message);
+    }
+
+    alert(`HOÀN TẤT NHẬP DỮ LIỆU:\n- Thêm mới thành công: ${successCount} học sinh.\n- Bị loại bỏ do trùng SBD/CCCD: ${failCount} bản ghi.`);
+    fetchAdminData();
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -168,11 +212,18 @@ const App: React.FC = () => {
               <AdminDashboard 
                 students={students} 
                 siteConfig={siteConfig}
-                onUpdate={async (u) => { await supabase.from('students').update(u).eq('id', u.id); fetchAdminData(); }} 
+                onUpdate={async (u) => { 
+                   if (await checkDuplicate(u.sbd, u.cccd, u.id)) {
+                     alert('Lỗi: SBD hoặc CCCD này đã tồn tại ở học sinh khác!');
+                     return;
+                   }
+                   await supabase.from('students').update(u).eq('id', u.id); 
+                   fetchAdminData(); 
+                }} 
                 onDelete={async (id) => { if(confirm('Xóa?')) { await supabase.from('students').delete().eq('id', id); fetchAdminData(); } }}
                 onDeleteAll={async () => { if(confirm('Xóa sạch?')) { await supabase.from('students').delete().not('id', 'is', null); fetchAdminData(); } }} 
-                onAdd={async (n) => { await supabase.from('students').insert([n]); fetchAdminData(); }}
-                onBulkAdd={async (l) => { await supabase.from('students').insert(l); fetchAdminData(); }}
+                onAdd={handleAddStudent}
+                onBulkAdd={handleBulkAdd}
                 onConfigUpdate={async (c) => { await supabase.from('site_config').upsert([{ ...c, id: 1 }]); setSiteConfig(c); }}
                 onLogout={() => setIsLoggedIn(false)}
               />
@@ -185,12 +236,10 @@ const App: React.FC = () => {
             </h2>
             {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium animate-pulse">{error}</div>}
             
-            {/* Form tra cứu luôn nằm trên */}
             <div className="mb-10">
               <SearchForm onSearch={handleSearch} loading={loading} />
             </div>
 
-            {/* Kết quả hiển thị bên dưới Form và tự động trượt tới */}
             {result && (
               <div ref={resultRef} className="pb-20 scroll-mt-10">
                 <ResultView result={result} onClose={() => setResult(null)} />
