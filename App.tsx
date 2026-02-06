@@ -35,8 +35,6 @@ const App: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const resultRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -62,21 +60,6 @@ const App: React.FC = () => {
       link.href = siteConfig.favicon_url;
     }
   }, [siteConfig.favicon_url]);
-
-  useEffect(() => {
-    if (result) {
-      const scrollTimer = setTimeout(() => {
-        if (resultRef.current) {
-          resultRef.current.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start',
-            inline: 'nearest'
-          });
-        }
-      }, 300);
-      return () => clearTimeout(scrollTimer);
-    }
-  }, [result]);
 
   const fetchAdminData = useCallback(async () => {
     if (view !== 'admin' || !isLoggedIn) return;
@@ -195,7 +178,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
       <Header config={siteConfig} />
-      <main className="flex-grow py-10 px-4">
+      <main className="flex-grow py-10 px-4 relative">
         {view === 'admin' ? (
           <div className="w-full max-w-7xl mx-auto">
             {!isLoggedIn ? (
@@ -230,7 +213,6 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="w-full max-w-4xl mx-auto">
-            {/* Cấu hình tiêu đề bé hơn, màu xanh đậm như hình mẫu */}
             <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-10 tracking-normal leading-tight max-w-2xl mx-auto">
               {siteConfig.main_title}
             </h2>
@@ -241,10 +223,9 @@ const App: React.FC = () => {
               <SearchForm onSearch={handleSearch} loading={loading} />
             </div>
 
+            {/* Kết quả hiện nay được hiển thị dưới dạng Modal nổi (trong ResultView component) */}
             {result && (
-              <div ref={resultRef} className="pb-20 scroll-mt-10">
-                <ResultView result={result} onClose={() => setResult(null)} />
-              </div>
+              <ResultView result={result} onClose={() => setResult(null)} />
             )}
           </div>
         )}
