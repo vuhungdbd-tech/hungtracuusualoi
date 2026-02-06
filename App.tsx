@@ -49,10 +49,16 @@ const App: React.FC = () => {
     fetchConfig();
   }, []);
 
+  // Cải tiến logic cập nhật Favicon: Đảm bảo thẻ link tồn tại
   useEffect(() => {
     if (siteConfig.favicon_url) {
-      const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (link) link.href = siteConfig.favicon_url;
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = siteConfig.favicon_url;
     }
   }, [siteConfig.favicon_url]);
 
@@ -102,9 +108,11 @@ const App: React.FC = () => {
   };
 
   const checkDuplicate = (sbd: string, cccd: string, excludeId?: string) => {
+    const normSBD = sbd.trim().toUpperCase();
+    const normCCCD = cccd.trim();
     return students.find(s => 
       (s.id !== excludeId) && 
-      (s.sbd.trim().toUpperCase() === sbd.trim().toUpperCase() || s.cccd.trim() === cccd.trim())
+      (s.sbd.trim().toUpperCase() === normSBD || s.cccd.trim() === normCCCD)
     );
   };
 
@@ -118,7 +126,7 @@ const App: React.FC = () => {
 
   const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
     const sbd = newStudent.sbd.trim().toUpperCase();
-    const cccd = newStudent.cccd.trim();
+    const cccd = newStudent.cccd.trim().replace(/\D/g, '');
 
     if (cccd.length !== 12) {
       alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
@@ -126,7 +134,7 @@ const App: React.FC = () => {
     }
 
     if (checkDuplicate(sbd, cccd)) {
-      alert('LỖI: SBD hoặc CCCD đã tồn tại trong hệ thống.');
+      alert('LỖI: Số báo danh hoặc CCCD này đã tồn tại trên hệ thống.');
       return;
     }
 
@@ -142,7 +150,7 @@ const App: React.FC = () => {
 
   const handleUpdateStudent = async (updated: StudentResult) => {
     const sbd = updated.sbd.trim().toUpperCase();
-    const cccd = updated.cccd.trim();
+    const cccd = updated.cccd.trim().replace(/\D/g, '');
 
     if (cccd.length !== 12) {
       alert('LỖI: Số CCCD phải có đúng 12 chữ số.');
@@ -150,7 +158,7 @@ const App: React.FC = () => {
     }
 
     if (checkDuplicate(sbd, cccd, updated.id)) {
-      alert('LỖI: SBD hoặc CCCD đã được sử dụng bởi thí sinh khác.');
+      alert('LỖI: Số báo danh hoặc CCCD này đã được sử dụng bởi thí sinh khác.');
       return;
     }
 
@@ -168,30 +176,26 @@ const App: React.FC = () => {
     const seenSBD = new Set();
     const seenCCCD = new Set();
 
-    // 1. Kiểm tra tính hợp lệ và trùng lặp toàn bộ danh sách trước khi nhập
     for (const item of list) {
       const sbd = item.sbd.trim().toUpperCase();
-      const cccd = item.cccd.trim();
+      const cccd = item.cccd.trim().replace(/\D/g, '');
 
-      // Kiểm tra độ dài CCCD
       if (cccd.length !== 12) {
-        alert(`LỖI FILE: Thí sinh "${item.full_name}" có số CCCD (${cccd}) không đúng 12 chữ số.`);
+        alert(`LỖI FILE: Thí sinh "${item.full_name}" có số CCCD (${cccd}) không đúng 12 chữ số (độ dài hiện tại: ${cccd.length}).`);
         return;
       }
 
-      // Kiểm tra trùng lặp ngay trong file
       if (seenSBD.has(sbd)) {
-        alert(`LỖI FILE: Phát hiện Số báo danh trùng lặp trong file: ${sbd}`);
+        alert(`LỖI FILE: Số báo danh "${sbd}" bị trùng lặp trong file Excel.`);
         return;
       }
       if (seenCCCD.has(cccd)) {
-        alert(`LỖI FILE: Phát hiện Số CCCD trùng lặp trong file: ${cccd}`);
+        alert(`LỖI FILE: Số CCCD "${cccd}" bị trùng lặp trong file Excel.`);
         return;
       }
 
-      // Kiểm tra trùng lặp với dữ liệu đã có trong hệ thống
       if (checkDuplicate(sbd, cccd)) {
-        alert(`LỖI HỆ THỐNG: SBD "${sbd}" hoặc CCCD "${cccd}" của thí sinh "${item.full_name}" đã tồn tại trên cơ sở dữ liệu.`);
+        alert(`LỖI TRÙNG DỮ LIỆU: SBD "${sbd}" hoặc CCCD "${cccd}" đã tồn tại trong hệ thống.`);
         return;
       }
 
@@ -199,19 +203,18 @@ const App: React.FC = () => {
       seenCCCD.add(cccd);
     }
 
-    // 2. Nếu mọi thứ ổn, tiến hành gửi dữ liệu lên Supabase
     setLoading(true);
     try {
       const normalized = list.map(s => ({
         ...s, 
         sbd: s.sbd.trim().toUpperCase(), 
-        cccd: s.cccd.trim()
+        cccd: s.cccd.trim().replace(/\D/g, '')
       }));
       
       const { error } = await supabase.from('students').insert(normalized);
       if (error) throw error;
       
-      alert(`Thành công: Đã nhập ${list.length} thí sinh vào hệ thống!`);
+      alert(`Đã nhập thành công ${list.length} thí sinh!`);
       fetchAdminData();
     } catch (err: any) {
       handleDatabaseError(err);
@@ -239,15 +242,9 @@ const App: React.FC = () => {
   const saveConfig = async (newConfig: SiteConfig) => {
     try {
       const { error } = await supabase.from('site_config').upsert([{ ...newConfig, id: 1 }]);
-      if (error && (error.message.includes('favicon_url') || error.code === '42703')) {
-        const { favicon_url, ...partial } = newConfig;
-        await supabase.from('site_config').upsert([{ ...partial, id: 1 }]);
-        setSiteConfig(prev => ({ ...prev, ...partial }));
-        alert("Lưu cấu hình thành công!");
-      } else {
-        setSiteConfig(newConfig);
-        alert('Đã cập nhật cấu hình hệ thống!');
-      }
+      if (error) throw error;
+      setSiteConfig(newConfig);
+      alert('Đã cập nhật cấu hình hệ thống!');
     } catch (err: any) { alert('Lỗi: ' + err.message); }
   };
 
