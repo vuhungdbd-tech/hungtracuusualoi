@@ -59,29 +59,56 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
       return;
     }
     if (formData.cccd.length !== 12) {
-      setCccdError('YÊU CẦU: Nhập chính xác và đầy đủ 12 số CCCD');
+      setCccdError('YÊU CẦU: Nhập đủ 12 số CCCD');
       return;
     }
     onSearch(formData);
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-      <div className="bg-[#1e88e5] px-6 py-5">
-        <h3 className="text-lg font-black text-white text-center uppercase tracking-wider">HỆ THỐNG TRA CỨU ĐIỂM THI</h3>
+    <div className="w-full max-w-2xl mx-auto bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden transform transition-all">
+      {/* Header Form - Xanh dương như hình */}
+      <div className="bg-[#1d88e5] px-6 py-5">
+        <h3 className="text-xl font-bold text-white text-center uppercase tracking-wider">HỆ THỐNG TRA CỨU ĐIỂM THI</h3>
       </div>
-      <form onSubmit={handleSubmit} className="p-8 space-y-5">
+      
+      <form onSubmit={handleSubmit} className="p-8 md:p-10 space-y-6">
+        {/* Họ và tên */}
         <div>
-          <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Họ và tên thí sinh <span className="text-red-500">*</span></label>
-          <input type="text" name="full_name" required value={formData.full_name} onChange={handleChange} placeholder="NGUYỄN VĂN AN" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-blue-500 outline-none uppercase font-semibold" />
+          <label className="block text-[11px] font-bold text-gray-400 uppercase mb-2 tracking-wide">
+            Họ và tên thí sinh <span className="text-red-500">*</span>
+          </label>
+          <input 
+            type="text" 
+            name="full_name" 
+            required 
+            value={formData.full_name} 
+            onChange={handleChange} 
+            placeholder="ĐỖ QUANG ĐỨC" 
+            className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:border-blue-400 focus:bg-white outline-none uppercase font-bold text-gray-600 placeholder:text-gray-300 transition-all shadow-sm" 
+          />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+        {/* SBD & CCCD Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Số báo danh <span className="text-red-500">*</span></label>
-            <input type="text" name="sbd" required value={formData.sbd} onChange={handleChange} placeholder="HSG001" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-blue-500 outline-none uppercase font-bold" />
+            <label className="block text-[11px] font-bold text-gray-400 uppercase mb-2 tracking-wide">
+              Số báo danh <span className="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              name="sbd" 
+              required 
+              value={formData.sbd} 
+              onChange={handleChange} 
+              placeholder="HSG001" 
+              className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:border-blue-400 focus:bg-white outline-none uppercase font-black text-gray-600 placeholder:text-gray-300 transition-all shadow-sm" 
+            />
           </div>
           <div>
-            <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Số CCCD (12 số) <span className="text-red-500">*</span></label>
+            <label className="block text-[11px] font-bold text-gray-400 uppercase mb-2 tracking-wide">
+              Số CCCD (12 số) <span className="text-red-500">*</span>
+            </label>
             <input 
               type="text" 
               name="cccd" 
@@ -89,28 +116,44 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, loading }) => {
               maxLength={12} 
               value={formData.cccd} 
               onChange={handleChange} 
-              className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:border-blue-500 outline-none transition-all font-mono font-bold ${cccdError ? 'border-red-500 bg-red-50' : 'border-gray-200'}`} 
+              className={`w-full px-5 py-4 bg-gray-50 border rounded-2xl focus:border-blue-400 focus:bg-white outline-none transition-all font-mono font-bold text-gray-600 placeholder:text-gray-300 shadow-sm ${cccdError ? 'border-red-300 bg-red-50' : 'border-gray-100'}`} 
               placeholder="001..."
             />
-            {cccdError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic">{cccdError}</p>}
+            {cccdError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic tracking-tight">{cccdError}</p>}
           </div>
         </div>
+
+        {/* Captcha */}
         <div>
-          <label className="block text-[11px] font-black text-gray-400 uppercase mb-1.5">Nhập mã bảo mật <span className="text-red-500">*</span></label>
-          <div className="flex space-x-3">
-            <input type="text" required value={userInputCaptcha} onChange={e => setUserInputCaptcha(e.target.value)} className={`flex-1 px-4 py-3 bg-gray-50 border rounded-xl outline-none uppercase tracking-widest font-bold ${captchaError ? 'border-red-500' : 'border-gray-200'}`} />
-            <div onClick={generateCaptcha} className="bg-slate-100 px-5 py-3 rounded-xl border border-gray-200 cursor-pointer font-black text-blue-900 tracking-widest line-through italic select-none shadow-inner" title="Nhấn để đổi mã">
-              {captchaCode}
+          <label className="block text-[11px] font-bold text-gray-400 uppercase mb-2 tracking-wide">
+            Nhập mã bảo mật <span className="text-red-500">*</span>
+          </label>
+          <div className="flex space-x-4">
+            <input 
+              type="text" 
+              required 
+              value={userInputCaptcha} 
+              onChange={e => setUserInputCaptcha(e.target.value)} 
+              className={`flex-1 px-5 py-4 bg-gray-50 border rounded-2xl outline-none uppercase tracking-[0.3em] font-black text-gray-600 shadow-sm ${captchaError ? 'border-red-300' : 'border-gray-100'}`} 
+            />
+            <div 
+              onClick={generateCaptcha} 
+              className="bg-[#edf2f7] px-8 py-4 rounded-2xl border border-gray-100 cursor-pointer font-black text-[#1a365d] tracking-widest italic select-none shadow-inner flex items-center justify-center min-w-[140px]" 
+              title="Nhấn để đổi mã"
+            >
+              <span className="line-through decoration-blue-500/40 opacity-80">{captchaCode}</span>
             </div>
           </div>
-          {captchaError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic">Mã bảo mật không khớp</p>}
+          {captchaError && <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic tracking-tight">Mã bảo mật không chính xác</p>}
         </div>
+
+        {/* Nút tra cứu */}
         <button 
           type="submit" 
           disabled={loading || !isFormValid} 
-          className={`w-full py-4 text-white font-black rounded-xl transition-all uppercase tracking-widest text-sm shadow-md ${isFormValid ? 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5' : 'bg-gray-300 cursor-not-allowed opacity-70'}`}
+          className={`w-full py-5 text-white font-black rounded-2xl transition-all uppercase tracking-[0.15em] text-base shadow-xl border-b-4 ${isFormValid ? 'bg-blue-600 border-blue-800 hover:bg-blue-700 active:translate-y-1 active:border-b-0' : 'bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed opacity-80'}`}
         >
-          {loading ? 'HỆ THỐNG ĐANG KIỂM TRA...' : 'BẮT ĐẦU TRA CỨU'}
+          {loading ? 'ĐANG TÌM KIẾM...' : 'BẮT ĐẦU TRA CỨU'}
         </button>
       </form>
     </div>
