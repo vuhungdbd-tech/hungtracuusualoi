@@ -107,15 +107,17 @@ const App: React.FC = () => {
   };
 
   const checkDuplicate = async (sbd: string, cccd: string, excludeId?: string) => {
-    let query = supabase.from('students').select('id').or(`sbd.eq.${sbd},cccd.eq.${cccd}`);
+    let query = supabase.from('students').select('full_name, sbd, cccd').or(`sbd.eq.${sbd},cccd.eq.${cccd}`);
     if (excludeId) query = query.neq('id', excludeId);
     const { data } = await query;
-    return data && data.length > 0;
+    return data && data.length > 0 ? data[0] : null;
   };
 
   const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
-    if (await checkDuplicate(newStudent.sbd, newStudent.cccd)) {
-      alert(`LỖI: Số báo danh ${newStudent.sbd} hoặc CCCD ${newStudent.cccd} đã tồn tại!`);
+    const duplicate = await checkDuplicate(newStudent.sbd, newStudent.cccd);
+    if (duplicate) {
+      const field = duplicate.sbd === newStudent.sbd ? "SỐ BÁO DANH" : "SỐ CCCD";
+      alert(`LỖI TRÙNG DỮ LIỆU: ${field} đã tồn tại trong hệ thống!\n\nThông tin bản ghi trùng:\n- Thí sinh: ${duplicate.full_name}\n- Số báo danh: ${duplicate.sbd}`);
       return;
     }
     const { error } = await supabase.from('students').insert([newStudent]);
@@ -129,26 +131,29 @@ const App: React.FC = () => {
   const handleBulkAdd = async (list: Omit<StudentResult, 'id'>[]) => {
     let successCount = 0;
     let failCount = 0;
+    const errors: string[] = [];
     
-    const { data: existing } = await supabase.from('students').select('sbd, cccd');
-    const existingSBDs = new Set(existing?.map(e => e.sbd) || []);
-    const existingCCCDs = new Set(existing?.map(e => e.cccd) || []);
-
-    const toInsert = list.filter(item => {
-      if (existingSBDs.has(item.sbd) || existingCCCDs.has(item.cccd)) {
+    // Check for duplicates row by row to provide better feedback
+    for (const item of list) {
+      const duplicate = await checkDuplicate(item.sbd, item.cccd);
+      if (duplicate) {
         failCount++;
-        return false;
+        errors.push(`- Thí sinh ${item.full_name} bị trùng với ${duplicate.full_name} (SBD: ${duplicate.sbd})`);
+      } else {
+        const { error } = await supabase.from('students').insert([item]);
+        if (!error) successCount++;
+        else {
+          failCount++;
+          errors.push(`- Thí sinh ${item.full_name}: Lỗi hệ thống (${error.message})`);
+        }
       }
-      return true;
-    });
-
-    if (toInsert.length > 0) {
-      const { error } = await supabase.from('students').insert(toInsert);
-      if (!error) successCount = toInsert.length;
-      else alert('Lỗi: ' + error.message);
     }
 
-    alert(`Thành công: ${successCount}, Trùng: ${failCount}`);
+    let message = `Kết quả nhập liệu:\n- Thành công: ${successCount}\n- Thất bại: ${failCount}`;
+    if (errors.length > 0) {
+      message += `\n\nChi tiết lỗi (Tối đa 10 dòng đầu):\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? '\n... và các bản ghi khác' : ''}`;
+    }
+    alert(message);
     fetchAdminData();
   };
 
@@ -195,8 +200,10 @@ const App: React.FC = () => {
                 students={students} 
                 siteConfig={siteConfig}
                 onUpdate={async (u) => { 
-                   if (await checkDuplicate(u.sbd, u.cccd, u.id)) {
-                     alert('Lỗi: SBD hoặc CCCD đã tồn tại!');
+                   const duplicate = await checkDuplicate(u.sbd, u.cccd, u.id);
+                   if (duplicate) {
+                     const field = duplicate.sbd === u.sbd ? "SỐ BÁO DANH" : "SỐ CCCD";
+                     alert(`LỖI CẬP NHẬT: ${field} bị trùng với hồ sơ đã có trong hệ thống!\n\nThông tin trùng:\n- Thí sinh: ${duplicate.full_name}\n- Số báo danh: ${duplicate.sbd}`);
                      return;
                    }
                    await supabase.from('students').update(u).eq('id', u.id); 
