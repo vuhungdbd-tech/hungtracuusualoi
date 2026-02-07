@@ -178,7 +178,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
       <Header config={siteConfig} />
-      <main className="flex-grow py-6 md:py-10 px-4 relative">
+      <main className="flex-grow pt-4 pb-12 md:pt-6 md:pb-16 px-4 relative">
         {view === 'admin' ? (
           <div className="w-full max-w-7xl mx-auto">
             {!isLoggedIn ? (
@@ -213,14 +213,14 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-            {/* Tiêu đề trang - Căn chỉnh cao lên */}
-            <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-8 tracking-tight leading-tight max-w-2xl mx-auto">
+            {/* Tiêu đề trang - Giảm lề dưới để tiết kiệm không gian */}
+            <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-5 md:mb-6 tracking-tight leading-tight max-w-2xl mx-auto">
               {siteConfig.main_title}
             </h2>
             
             {error && <div className="max-w-xl w-full mb-4 p-3 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium text-sm">{error}</div>}
             
-            {/* Form tra cứu - Di chuyển lên trên */}
+            {/* Form tra cứu */}
             <div className="w-full">
               <SearchForm onSearch={handleSearch} loading={loading} />
             </div>
