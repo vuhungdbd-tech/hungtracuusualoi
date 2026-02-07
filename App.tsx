@@ -11,7 +11,7 @@ import { supabase } from './lib/supabase';
 const DEFAULT_CONFIG: SiteConfig = {
   header_top: "PHÒNG GIÁO DỤC VÀ ĐÀO TẠO",
   header_sub: "HỆ THỐNG TRA CỨU ĐIỂM THI TRỰC TUYẾN",
-  main_title: "TRA CỨU KÌ THI HỌC SINH GIỎI CÁC MÔN VĂN HÓA CẤP XÃ, NĂM HỌC 2025-2026",
+  main_title: "TRA CỨU ĐIỂM THI HỌC SINH GIỎI CÁC MÔN VĂN HÓA CẤP XÃ - NĂM HỌC 2025-2026",
   footer_copyright: "Bản quyền thuộc về Ban Tổ chức Kỳ thi Học sinh giỏi",
   footer_address: "Địa chỉ: Trụ sở UBND Xã - Ban Giáo dục & Đào tạo",
   footer_support: "Hỗ trợ kỹ thuật: 1900 xxxx - Email: hotro@giaoduc.gov.vn",
@@ -97,7 +97,7 @@ const App: React.FC = () => {
       if (data) {
         setResult(data);
       } else {
-        setError('KHÔNG TÌM THẤY KẾT QUẢ: Vui lòng kiểm tra lại Họ tên, SBD và CCCD. Mọi thông tin phải khớp 100% với hồ sơ đăng ký.');
+        setError('KHÔNG TÌM THẤY KẾT QUẢ: Vui lòng kiểm tra lại Họ tên, SBD và CCCD.');
       }
     } catch (err: any) {
       setError('Hệ thống đang bận. Vui lòng thử lại sau.');
@@ -115,13 +115,13 @@ const App: React.FC = () => {
 
   const handleAddStudent = async (newStudent: Omit<StudentResult, 'id'>) => {
     if (await checkDuplicate(newStudent.sbd, newStudent.cccd)) {
-      alert(`LỖI: Số báo danh ${newStudent.sbd} hoặc CCCD ${newStudent.cccd} đã tồn tại trong hệ thống!`);
+      alert(`LỖI: Số báo danh ${newStudent.sbd} hoặc CCCD ${newStudent.cccd} đã tồn tại!`);
       return;
     }
     const { error } = await supabase.from('students').insert([newStudent]);
     if (error) alert('Lỗi: ' + error.message);
     else {
-      alert('Đã thêm 01 học sinh mới thành công.');
+      alert('Đã thêm thành công.');
       fetchAdminData();
     }
   };
@@ -148,7 +148,7 @@ const App: React.FC = () => {
       else alert('Lỗi: ' + error.message);
     }
 
-    alert(`HOÀN TẤT NHẬP DỮ LIỆU:\n- Thêm mới thành công: ${successCount} học sinh.\n- Bị loại bỏ do trùng SBD/CCCD: ${failCount} bản ghi.`);
+    alert(`Thành công: ${successCount}, Trùng: ${failCount}`);
     fetchAdminData();
   };
 
@@ -171,23 +171,23 @@ const App: React.FC = () => {
   if (initializing) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-      <div className="font-bold text-blue-900 uppercase tracking-widest text-sm">Hệ thống đang khởi tạo...</div>
+      <div className="font-bold text-blue-900 uppercase tracking-widest text-sm">Đang tải...</div>
     </div>
   );
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc]">
       <Header config={siteConfig} />
-      <main className="flex-grow py-10 px-4 relative">
+      <main className="flex-grow py-6 md:py-10 px-4 relative">
         {view === 'admin' ? (
           <div className="w-full max-w-7xl mx-auto">
             {!isLoggedIn ? (
               <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
-                <h3 className="text-xl font-black text-gray-900 uppercase text-center mb-6">Đăng nhập Admin</h3>
+                <h3 className="text-xl font-black text-gray-900 uppercase text-center mb-6">Admin Login</h3>
                 <form onSubmit={handleEmailLogin} className="space-y-4">
                   <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-blue-500" placeholder="Email" />
-                  <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-blue-500" placeholder="Mật khẩu" />
-                  <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 uppercase">{loading ? 'Đang xử lý...' : 'Đăng nhập'}</button>
+                  <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border rounded-xl outline-none focus:border-blue-500" placeholder="Password" />
+                  <button type="submit" disabled={loading} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 uppercase">{loading ? 'Processing...' : 'Login'}</button>
                 </form>
               </div>
             ) : (
@@ -196,7 +196,7 @@ const App: React.FC = () => {
                 siteConfig={siteConfig}
                 onUpdate={async (u) => { 
                    if (await checkDuplicate(u.sbd, u.cccd, u.id)) {
-                     alert('Lỗi: SBD hoặc CCCD này đã tồn tại ở học sinh khác!');
+                     alert('Lỗi: SBD hoặc CCCD đã tồn tại!');
                      return;
                    }
                    await supabase.from('students').update(u).eq('id', u.id); 
@@ -212,18 +212,19 @@ const App: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="w-full max-w-4xl mx-auto">
-            <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-10 tracking-normal leading-tight max-w-2xl mx-auto">
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
+            {/* Tiêu đề trang - Căn chỉnh cao lên */}
+            <h2 className="text-xl md:text-2xl font-black text-[#1e40af] text-center uppercase mb-8 tracking-tight leading-tight max-w-2xl mx-auto">
               {siteConfig.main_title}
             </h2>
             
-            {error && <div className="max-w-xl mx-auto mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium animate-pulse">{error}</div>}
+            {error && <div className="max-w-xl w-full mb-4 p-3 bg-red-50 text-red-700 rounded-xl border border-red-100 text-center font-medium text-sm">{error}</div>}
             
-            <div className="mb-10">
+            {/* Form tra cứu - Di chuyển lên trên */}
+            <div className="w-full">
               <SearchForm onSearch={handleSearch} loading={loading} />
             </div>
 
-            {/* Kết quả hiện nay được hiển thị dưới dạng Modal nổi (trong ResultView component) */}
             {result && (
               <ResultView result={result} onClose={() => setResult(null)} />
             )}
